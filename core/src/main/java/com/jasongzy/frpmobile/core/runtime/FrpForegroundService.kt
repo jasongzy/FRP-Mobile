@@ -22,6 +22,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import com.jasongzy.frpmobile.core.data.AppGraph
 import com.jasongzy.frpmobile.core.frp.FrpInstanceStatus
+import com.jasongzy.frpmobile.core.frp.FrpType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -51,7 +52,7 @@ class FrpForegroundService : Service() {
     private val repository by lazy { AppGraph.repository(this) }
     private val commandsInFlight = AtomicInteger()
     private var runtimeWatch: Job? = null
-    private var notifiedCount: Int? = null
+    private var notifiedTypes: List<FrpType>? = null
     private var liveUpdatesEnabled = false
     @Volatile private var destroyed = false
     private val recoveryAttempts = ConcurrentHashMap<String, Int>()
@@ -77,9 +78,9 @@ class FrpForegroundService : Service() {
         scope.launch {
             RuntimeNotifications.refreshRequests.collect {
                 synchronized(this@FrpForegroundService) {
-                    if (!destroyed) notifiedCount?.let { count ->
+                    if (!destroyed) notifiedTypes?.let { types ->
                         getSystemService(NotificationManager::class.java).notify(
-                            RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(this@FrpForegroundService, count, liveUpdatesEnabled),
+                            RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(this@FrpForegroundService, types, liveUpdatesEnabled),
                         )
                     }
                 }
@@ -199,12 +200,10 @@ class FrpForegroundService : Service() {
         val startId = latestStartId
         val states = repository.runtimeStates.first()
         recoveryAttempts.keys.retainAll(states.map { it.runToken }.toSet())
-        val count = states.count {
-            it.state == FrpInstanceStatus.Running || it.state == FrpInstanceStatus.Stopping
-        }
+        val types = FrpRuntimePolicy.notificationTypes(states)
         val retrying = repository.localRuntimeRunning && repository.shouldAutoRetryFailures() &&
             states.any { it.desiredRunning }
-        if (count <= 0 && !retrying) {
+        if (types.isEmpty() && !retrying) {
             if (!repository.localRuntimeRunning && repository.shouldAutoRetryFailures()) {
                 states.filter { it.desiredRunning }.forEach { state ->
                     FrpRetryWorker.enqueue(this, state.id, state.runToken,
@@ -214,7 +213,7 @@ class FrpForegroundService : Service() {
             withContext(Dispatchers.Main.immediate) {
                 if (commandsInFlight.get() == 0 && latestStartId == startId) {
                     synchronized(this@FrpForegroundService) {
-                        notifiedCount = null
+                        notifiedTypes = null
                         ServiceCompat.stopForeground(this@FrpForegroundService, ServiceCompat.STOP_FOREGROUND_REMOVE)
                         stopSelf(startId)
                     }
@@ -223,9 +222,9 @@ class FrpForegroundService : Service() {
             return
         }
         synchronized(this) {
-            if (notifiedCount != count) {
-                getSystemService(NotificationManager::class.java).notify(RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(this, count, liveUpdatesEnabled))
-                notifiedCount = count
+            if (notifiedTypes != types) {
+                getSystemService(NotificationManager::class.java).notify(RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(this, types, liveUpdatesEnabled))
+                notifiedTypes = types
             }
         }
     }
@@ -273,7 +272,7 @@ class FrpForegroundService : Service() {
                     screenOffKeepAliveEnabled = false
                     stopScreenOffKeepAliveMonitoring()
                     synchronized(this@FrpForegroundService) {
-                        notifiedCount = null
+                        notifiedTypes = null
                         ServiceCompat.stopForeground(this@FrpForegroundService, ServiceCompat.STOP_FOREGROUND_REMOVE)
                         stopSelf()
                     }
@@ -284,9 +283,9 @@ class FrpForegroundService : Service() {
                 synchronized(this@FrpForegroundService) {
                     if (!destroyed && liveUpdatesEnabled != settings.liveUpdatesEnabled) {
                         liveUpdatesEnabled = settings.liveUpdatesEnabled
-                        notifiedCount?.let { count ->
+                        notifiedTypes?.let { types ->
                             getSystemService(NotificationManager::class.java).notify(
-                                RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(this@FrpForegroundService, count, liveUpdatesEnabled),
+                                RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(this@FrpForegroundService, types, liveUpdatesEnabled),
                             )
                         }
                     }
@@ -398,7 +397,7 @@ class FrpForegroundService : Service() {
         ServiceCompat.startForeground(
             this,
             RuntimeNotifications.SERVICE_ID,
-            RuntimeNotifications.build(this, runningCount = notifiedCount ?: 0, liveUpdates = liveUpdatesEnabled),
+            RuntimeNotifications.build(this, runningTypes = notifiedTypes.orEmpty(), liveUpdates = liveUpdatesEnabled),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
         )
     }

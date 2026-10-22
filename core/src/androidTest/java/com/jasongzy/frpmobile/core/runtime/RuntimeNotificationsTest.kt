@@ -41,15 +41,18 @@ class RuntimeNotificationsTest {
     @Test fun liveUpdatesRequireOptInAndRunningInstances() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         assertFalse(FrpSettings().liveUpdatesEnabled)
-        val standard = RuntimeNotifications.build(context, 2)
+        val types = listOf(FrpType.Client, FrpType.Server)
+        val standard = RuntimeNotifications.build(context, types)
         assertFalse(standard.extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING))
-        assertFalse(RuntimeNotifications.build(context, 0, true).extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING))
-        val live = RuntimeNotifications.build(context, 2, true)
+        assertFalse(RuntimeNotifications.build(context, emptyList(), true).extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING))
+        val live = RuntimeNotifications.build(context, types, true)
         assertTrue(live.extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING))
         assertTrue(live.flags and Notification.FLAG_ONGOING_EVENT != 0)
         if (Build.VERSION.SDK_INT >= 36) {
             assertTrue(live.hasPromotableCharacteristics())
             assertEquals(context.getString(R.string.notification_running_short, 2), live.shortCriticalText)
+            assertEquals("frpc", RuntimeNotifications.build(context, listOf(FrpType.Client), true).shortCriticalText)
+            assertEquals("frps", RuntimeNotifications.build(context, listOf(FrpType.Server), true).shortCriticalText)
         }
         assertEquals(context.getString(R.string.notification_running_content, 2), live.extras.getCharSequence(Notification.EXTRA_TEXT))
         assertEquals(standard.actions.first().actionIntent, live.actions.first().actionIntent)
@@ -115,6 +118,18 @@ class RuntimeNotificationsTest {
                     withTimeout(5000) {
                         while (moduleNotification().notification.flags and Notification.FLAG_PROMOTED_ONGOING == 0) delay(25)
                     }
+                    val serverStates = backend.states
+                    assertEquals("frps", moduleNotification().notification.shortCriticalText)
+                    backend.states = serverStates.map { it.copy(type = FrpType.Client) }
+                    repository.syncRuntimeStates()
+                    withTimeout(5000) {
+                        while (moduleNotification().notification.shortCriticalText != "frpc") delay(25)
+                    }
+                    backend.states = serverStates
+                    repository.syncRuntimeStates()
+                    withTimeout(5000) {
+                        while (moduleNotification().notification.shortCriticalText != "frps") delay(25)
+                    }
                 }
                 manager.cancel(initial.id)
                 withTimeout(5000) { while (manager.activeNotifications.isNotEmpty()) delay(25) }
@@ -160,7 +175,7 @@ class RuntimeNotificationsTest {
             backend.states = firstQueries
             repository.syncRuntimeStates()
             moduleNotification()
-            manager.notify(RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(context, 1))
+            manager.notify(RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(context, listOf(FrpType.Server)))
             settings.setRootMode(false)
             withTimeout(5000) {
                 while (manager.activeNotifications.any { it.id != RuntimeNotifications.SERVICE_ID }) delay(25)

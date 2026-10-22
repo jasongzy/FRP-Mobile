@@ -13,6 +13,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.jasongzy.frpmobile.core.data.AppGraph
+import com.jasongzy.frpmobile.core.frp.FrpType
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -40,7 +41,8 @@ object RuntimeNotifications {
         )
     }
 
-    fun build(context: Context, runningCount: Int, liveUpdates: Boolean = false): Notification {
+    fun build(context: Context, runningTypes: List<FrpType>, liveUpdates: Boolean = false): Notification {
+        val runningCount = runningTypes.size
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val openAppIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
             PendingIntent.getActivity(context, 0, it, flags)
@@ -65,7 +67,11 @@ object RuntimeNotifications {
             .addAction(0, context.getString(R.string.notification_stop_all), stopAllIntent)
         if (liveUpdates && runningCount > 0) {
             builder.setRequestPromotedOngoing(true)
-                .setShortCriticalText(context.getString(R.string.notification_running_short, runningCount))
+                .setShortCriticalText(when (runningTypes.singleOrNull()) {
+                    FrpType.Client -> "frpc"
+                    FrpType.Server -> "frps"
+                    null -> context.getString(R.string.notification_running_short, runningCount)
+                })
         }
         if (openAppIntent != null) {
             builder.setContentIntent(openAppIntent)
@@ -82,15 +88,15 @@ object RuntimeNotifications {
         try {
             if (repository.settings.first().rootMode) repository.syncRuntimeStates()
             combine(repository.settings, repository.runtimeStates) { settings, states ->
-                val count = FrpRuntimePolicy.moduleNotificationCount(settings.rootMode, states)
-                Triple(settings.rootMode && (settings.runtimeSyncPending || count != null), count, settings.liveUpdatesEnabled)
+                val types = FrpRuntimePolicy.moduleNotificationTypes(settings.rootMode, states)
+                Triple(settings.rootMode && (settings.runtimeSyncPending || types != null), types, settings.liveUpdatesEnabled)
             }.distinctUntilChanged().combine(refreshRequests.onStart { emit(Unit) }) { state, _ -> state }
-                .collectLatest { (active, count, liveUpdates) ->
-                    if (count == null) {
+                .collectLatest { (active, types, liveUpdates) ->
+                    if (types == null) {
                         manager.cancel(MODULE_ID)
                     } else if (Build.VERSION.SDK_INT < 33 ||
                         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-                        manager.notify(MODULE_ID, build(context, count, liveUpdates))
+                        manager.notify(MODULE_ID, build(context, types, liveUpdates))
                     }
                     while (active && currentCoroutineContext().isActive) {
                         repository.syncRuntimeStates()

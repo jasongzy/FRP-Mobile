@@ -13,13 +13,14 @@ class FrpRuntimePolicyTest {
     @Test
     fun moduleNotificationTracksRunningStoppingAndRecoveryUntilAllStopped() {
         val running = FrpRuntimeState("server", FrpType.Server, FrpInstanceStatus.Running, null, true)
-        val stopping = running.copy(id = "client", state = FrpInstanceStatus.Stopping, desiredRunning = false)
+        val stopping = running.copy(id = "client", type = FrpType.Client, state = FrpInstanceStatus.Stopping, desiredRunning = false)
         val retrying = running.copy(state = FrpInstanceStatus.Failed)
-        assertEquals(2, FrpRuntimePolicy.moduleNotificationCount(true, listOf(running, stopping)))
-        assertEquals(0, FrpRuntimePolicy.moduleNotificationCount(true, listOf(retrying)))
-        assertNull(FrpRuntimePolicy.moduleNotificationCount(true, listOf(retrying.copy(desiredRunning = false))))
-        assertNull(FrpRuntimePolicy.moduleNotificationCount(true, emptyList()))
-        assertNull(FrpRuntimePolicy.moduleNotificationCount(false, listOf(running)))
+        assertEquals(listOf(FrpType.Server, FrpType.Client), FrpRuntimePolicy.moduleNotificationTypes(true, listOf(running, stopping)))
+        assertEquals(listOf(FrpType.Server), FrpRuntimePolicy.notificationTypes(listOf(running, retrying)))
+        assertEquals(emptyList<FrpType>(), FrpRuntimePolicy.moduleNotificationTypes(true, listOf(retrying)))
+        assertNull(FrpRuntimePolicy.moduleNotificationTypes(true, listOf(retrying.copy(desiredRunning = false))))
+        assertNull(FrpRuntimePolicy.moduleNotificationTypes(true, emptyList()))
+        assertNull(FrpRuntimePolicy.moduleNotificationTypes(false, listOf(running)))
     }
 
     @Test
