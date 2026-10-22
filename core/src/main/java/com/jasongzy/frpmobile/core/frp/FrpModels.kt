@@ -56,6 +56,8 @@ data class FrpLog(
 data class FrpResult(
     val code: String?,
     val message: String,
+    val startedCount: Int = 0,
+    val stoppedCount: Int = 0,
 ) {
     val isSuccess: Boolean = code == null
     val isInvalidToml: Boolean = code == "INVALID_TOML"

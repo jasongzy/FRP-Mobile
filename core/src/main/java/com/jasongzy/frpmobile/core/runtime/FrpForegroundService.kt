@@ -467,6 +467,10 @@ class FrpForegroundService : Service() {
             }
         }
 
+        fun controlFromApp(context: Context, command: AutomationCommand): Deferred<FrpResult> = commands.async {
+            dispatchMutex.withLock { controlLocked(context, command) }
+        }
+
         fun startOnAppLaunch(context: Context): Deferred<FrpResult> = commands.async {
             dispatchMutex.withLock {
                 if (!AppGraph.repository(context).settings.first().launchStartEnabled) return@withLock FrpResult(null, "")
@@ -479,6 +483,7 @@ class FrpForegroundService : Service() {
         ): FrpResult {
             val repository = AppGraph.repository(context)
             val action = when (command.operation) {
+                "toggle" -> null
                 "start" -> ACTION_START_PROFILE
                 "stop" -> ACTION_STOP_PROFILE
                 "restart" -> ACTION_RESTART_PROFILE
@@ -489,7 +494,11 @@ class FrpForegroundService : Service() {
                 else listOf(command.profileId)
             if (ids.isEmpty()) return FrpResult("NO_TARGETS", context.getString(R.string.automation_no_targets))
             val desired = if (skipDesired) repository.getDesiredRunningProfiles().map { it.id }.toSet() else emptySet()
+            if (command.operation == "toggle") repository.syncRuntimeStates()
+            val running = repository.runtimeStates.first().filter { it.canStop }.map { it.id }.toSet()
             val failures = mutableListOf<String>()
+            var startedCount = 0
+            var stoppedCount = 0
             for (id in ids) {
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 if (token != null && !repository.authorizeAutomation(token)) {
@@ -500,11 +509,18 @@ class FrpForegroundService : Service() {
                     failures += "$id: PROFILE_MISSING"
                     continue
                 }
+                val resolvedAction = action ?: if (id in running) ACTION_STOP_PROFILE else ACTION_START_PROFILE
                 val result = dispatchLocked(context, Intent(context, FrpForegroundService::class.java)
-                    .setAction(action).putExtra(EXTRA_PROFILE_ID, id))
+                    .setAction(resolvedAction)
+                    .putExtra(EXTRA_PROFILE_ID, id))
                 if (!result.isSuccess) failures += "$id: ${result.message}"
+                else when (resolvedAction) {
+                    ACTION_START_PROFILE -> startedCount++
+                    ACTION_STOP_PROFILE -> stoppedCount++
+                }
             }
-            return if (failures.isEmpty()) FrpResult(null, "") else FrpResult("CONTROL_FAILED", failures.joinToString("; "))
+            return FrpResult(if (failures.isEmpty()) null else "CONTROL_FAILED", failures.joinToString("; "),
+                startedCount, stoppedCount)
         }
 
         private suspend fun dispatchLocked(context: Context, intent: Intent): FrpResult {
@@ -529,6 +545,9 @@ class FrpForegroundService : Service() {
                             FrpRetryWorker.cancel(app, id)
                             return repository.runProfile(id, restart = intent.action == ACTION_RESTART_PROFILE)
                                 ?: FrpResult("PROFILE_MISSING", "PROFILE_MISSING")
+                        }
+                        if (!FrpRuntimePermissions.canStart(app)) {
+                            return FrpResult("LOCAL_NETWORK_PERMISSION_REQUIRED", context.getString(R.string.runtime_local_network_permission_required))
                         }
                         val token = id?.let { repository.requestRun(it) }
                             ?: return FrpResult("PROFILE_MISSING", "PROFILE_MISSING")

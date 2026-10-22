@@ -17,7 +17,7 @@ A native Android app for managing frpc and frps.
 - Import and export configurations
 - Keep connections running through a foreground service, with boot start and the option to hide the app from Recents
 - Manage an optional Magisk daemon module within the app
-- Quick Settings tile, Tasker plugin, token-authorized broadcasts and an opt-in configuration API
+- App icon quick actions, home screen shortcuts and widgets, plus a Quick Settings tile, Tasker plugin, token-authorized broadcasts and an opt-in configuration API
 
 ## 📥 Download
 

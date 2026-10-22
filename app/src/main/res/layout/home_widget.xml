@@ -1,0 +1,60 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/widget_container"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <!-- Outer padding keeps the card square inside the launcher cell. -->
+    <RelativeLayout
+        android:id="@+id/widget_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="10dp"
+        android:background="@drawable/home_widget_background"
+        tools:ignore="UselessParent">
+        <!-- RemoteViews uses the framework ImageView. -->
+        <ImageView
+            android:id="@+id/widget_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_alignParentEnd="true"
+            android:layout_marginStart="4dp"
+            android:src="@drawable/ic_home_toggle"
+            android:tint="@color/home_widget_foreground"
+            tools:ignore="UseAppTint"
+            android:importantForAccessibility="no" />
+        <TextView
+            android:id="@+id/widget_operation"
+            android:layout_width="match_parent"
+            android:layout_height="20dp"
+            android:layout_toStartOf="@id/widget_icon"
+            android:gravity="center_vertical"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="9sp"
+            android:autoSizeMaxTextSize="11sp"
+            android:autoSizeStepGranularity="1sp"
+            android:text="@string/home_toggle"
+            android:textColor="@color/home_widget_secondary"
+            android:textSize="11sp"
+            tools:targetApi="26" />
+        <TextView
+            android:id="@+id/widget_profile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:includeFontPadding="false"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="10sp"
+            android:autoSizeMaxTextSize="13sp"
+            android:autoSizeStepGranularity="1sp"
+            android:text="@string/app_name"
+            android:textColor="@color/home_widget_foreground"
+            android:textSize="13sp"
+            tools:targetApi="26" />
+    </RelativeLayout>
+</FrameLayout>

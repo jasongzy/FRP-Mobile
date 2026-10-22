@@ -7,4 +7,5 @@
     <string name="notification_view_logs">查看日志</string>
     <string name="tile_name">FRP Mobile</string>
     <string name="automation_no_targets">没有可用的自启配置。请在 FRP Mobile 的配置页为所需配置开启“自启”，或将自动化目标改为单个配置。（NO_TARGETS）</string>
+    <string name="runtime_local_network_permission_required">请在 FRP Mobile 中允许访问本地网络后再启动连接</string>
 </resources>

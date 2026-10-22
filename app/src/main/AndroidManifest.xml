@@ -28,6 +28,28 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".integration.home.HomeActionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.FrpMobile.HomeAction" />
+        <activity
+            android:name=".integration.home.HomeWidgetActivity"
+            android:exported="true"
+            android:label="@string/home_widget">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+        <receiver android:name=".integration.home.HomeWidgetProvider" android:exported="false" android:label="@string/home_widget">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/home_widget_info" />
+        </receiver>
+        <activity
             android:name=".integration.tasker.TaskerActivity"
             android:exported="true"
             android:label="@string/tasker_title">

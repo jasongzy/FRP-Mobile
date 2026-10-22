@@ -1,7 +1,9 @@
 package com.jasongzy.frpmobile.ui.settings
 
+import com.jasongzy.frpmobile.integration.AUTO_START_TARGET
+import com.jasongzy.frpmobile.integration.ControlActionFields
+import com.jasongzy.frpmobile.integration.controlCommand
 import com.jasongzy.frpmobile.R
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,9 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -27,15 +26,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.jasongzy.frpmobile.core.frp.FrpProfile
 import com.jasongzy.frpmobile.core.runtime.AutomationCommand
-import com.jasongzy.frpmobile.ui.components.ChoiceDialog
-import com.jasongzy.frpmobile.ui.components.FrpListRow
 import kotlinx.coroutines.CancellationException
 
 @Composable
@@ -48,16 +43,10 @@ internal fun AutomationCommandDialog(
     onDismiss: () -> Unit,
 ) {
     var operation by rememberSaveable { mutableStateOf("start") }
-    var selectedId by rememberSaveable { mutableStateOf("") }
-    var operationDialog by rememberSaveable { mutableStateOf(false) }
-    var targetDialog by rememberSaveable { mutableStateOf(false) }
+    var selectedId by rememberSaveable { mutableStateOf(AUTO_START_TARGET) }
     val profile = profiles.firstOrNull { it.id == selectedId }
-    val request = when {
-        operation == "stopAll" -> AutomationCommand(operation)
-        selectedId == AUTO_START_TARGET -> AutomationCommand(operation, target = "autoStart")
-        profile != null -> AutomationCommand(operation, profile.id)
-        else -> null
-    }
+    val request = if (operation == "stopAll" || selectedId == AUTO_START_TARGET || profile != null)
+        controlCommand(operation, selectedId) else null
     var preview by remember(request, authorization) { mutableStateOf("") }
     var error by remember(request, authorization) { mutableStateOf<String?>(null) }
     val loading = request != null && authorization.isNotEmpty() && preview.isEmpty() && error == null
@@ -78,23 +67,7 @@ internal fun AutomationCommandDialog(
                 Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                FrpListRow(
-                    icon = Icons.Rounded.PlayArrow,
-                    title = stringResource(R.string.tasker_operation),
-                    subtitle = stringResource(operationLabel(operation)),
-                    modifier = Modifier.clickable(enabled = !busy, role = Role.Button) { operationDialog = true },
-                )
-                FrpListRow(
-                    icon = Icons.Rounded.Tune,
-                    title = stringResource(R.string.settings_choose_profile),
-                    subtitle = when {
-                        operation == "stopAll" -> stringResource(R.string.settings_target_all)
-                        selectedId == AUTO_START_TARGET -> stringResource(R.string.settings_target_autostart)
-                        else -> profile?.name ?: stringResource(R.string.settings_choose_profile)
-                    },
-                    modifier = Modifier.alpha(if (operation == "stopAll") 0.6f else 1f)
-                        .clickable(enabled = !busy && operation != "stopAll", role = Role.Button) { targetDialog = true },
-                )
+                ControlActionFields(profiles, operation, selectedId, { operation = it }, { selectedId = it }, !busy)
                 if (loading) LinearWavyProgressIndicator(Modifier.fillMaxWidth())
                 Surface(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
@@ -132,19 +105,4 @@ internal fun AutomationCommandDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
     )
-    if (operationDialog) ChoiceDialog(
-        title = stringResource(R.string.tasker_operation),
-        selected = stringResource(operationLabel(operation)),
-        entries = listOf("start", "stop", "restart", "stopAll").map { value ->
-            stringResource(operationLabel(value)) to { operation = value }
-        },
-        onDismiss = { operationDialog = false },
-    )
-    if (targetDialog) ProfileChoiceDialog(
-        profiles = profiles, selected = selectedId, includeAutoStart = true,
-        onDismiss = { targetDialog = false },
-    ) {
-        selectedId = it
-        targetDialog = false
-    }
 }

@@ -220,13 +220,13 @@
     <string name="settings_tile_no_profile">No profile</string>
     <string name="settings_automation">Automation access</string>
     <string name="settings_automation_help">About automation control</string>
-    <string name="settings_automation_help_text">Authorize automation apps such as Tasker and MacroDroid to start, stop and restart frpc / frps profiles through plugins or broadcasts.</string>
+    <string name="settings_automation_help_text">Authorize automation apps such as Tasker and MacroDroid to toggle, start, stop and restart frpc / frps profiles through plugins or broadcasts, or stop all profiles.</string>
     <string name="settings_automation_tasker_title">Use with Tasker</string>
     <string name="settings_automation_tasker_text">Add Plugin → FRP Mobile, choose an operation and target, then save. The saved action carries the current authorization and can be triggered by Tasker conditions or tasks.</string>
     <string name="settings_automation_copy_title">Copy a broadcast command</string>
-    <string name="settings_automation_copy_text">Enable Automation access and tap Copy command below. Choose start, stop or restart, then select a single profile or Profiles marked for auto-start. Stop all profiles applies to every profile.\n\nThe command preview updates with your choices and includes the current token. Once it appears, tap Copy command and run it with ADB on a computer connected to your device. The profile ID is filled in automatically; frpc and frps use the same command format.</string>
+    <string name="settings_automation_copy_text">Enable Automation access and tap Copy command below. Choose toggle, start, stop or restart, then select a single profile or All profiles marked for auto-start. Stop all profiles applies to every profile.\n\nThe command preview updates with your choices and includes the current token. Once it appears, tap Copy command and run it with ADB on a computer connected to your device. The profile ID is filled in automatically; frpc and frps use the same command format.</string>
     <string name="settings_automation_targets_title">Operations and targets</string>
-    <string name="settings_automation_targets_text">operation selects the action:\n• start: start profiles.\n• stop: stop profiles.\n• restart: restart profiles.\n• stopAll: stop all profiles.\n\nStart, stop and restart require one target option:\n• profile_id: a single profile ID, regardless of its auto-start setting.\n• target=autoStart: all profiles marked for auto-start when the command runs. This selection is independent of the global boot-start switch.\n\nprofile_id is the profile ID, rather than its display name or filename. These operations change the running state; auto-start settings are managed on the Profiles tab. stopAll applies to every profile; remove profile_id and target when using it.</string>
+    <string name="settings_automation_targets_text">operation selects the action:\n• toggle: stop each running or retrying profile and start each stopped profile.\n• start: start profiles.\n• stop: stop profiles.\n• restart: restart profiles.\n• stopAll: stop all profiles.\n\nToggle, start, stop and restart require one target option:\n• profile_id: a single profile ID, regardless of its auto-start setting.\n• target=autoStart: all profiles marked for auto-start when the command runs. This selection is independent of the global boot-start switch.\n\nprofile_id is the profile ID, rather than its display name or filename. These operations change the running state; auto-start settings are managed on the Profiles tab. stopAll applies to every profile; remove profile_id and target when using it.</string>
     <string name="settings_automation_examples_title">Edit a copied command</string>
     <string name="settings_automation_examples_text">Replace the operation and target arguments with one of the fragments below. Keep -n, -a and token from the copied command. Replace PROFILE_ID with the actual ID from that command.\n\nStop one profile:\n--es operation stop --es profile_id PROFILE_ID\n\nStart profiles marked for auto-start:\n--es operation start --es target autoStart\n\nStop all profiles:\n--es operation stopAll</string>
     <string name="settings_automation_intent_title">Send an Intent from another app</string>
@@ -246,7 +246,7 @@
     <string name="settings_external_read_help">Allow apps on this Android user to list profiles and read their TOML, including passwords and tokens. Enable only when needed with trusted apps installed. Closing this switch blocks new reads; copies already obtained remain with their recipients.\n\nEndpoint: content://com.jasongzy.frpmobile.configs/profiles</string>
     <string name="settings_external_write_help">Allow apps on this Android user to create and update TOML through the configuration API. Updates require the current revision and validation, and take effect on the next start or restart. New profiles start with auto-start off. This permission can change tunnel destinations and credentials, so enable it only for trusted integrations. Authorization settings are stored on this device.</string>
     <string name="settings_allow_access">Allow access</string>
-    <string name="settings_target_autostart">Profiles marked for auto-start</string>
+    <string name="settings_target_autostart">All profiles marked for auto-start</string>
     <string name="tasker_title">FRP Mobile</string>
     <string name="tasker_operation">Operation</string>
     <string name="tasker_start">Start</string>
@@ -256,4 +256,35 @@
     <string name="tasker_save">Save</string>
     <string name="tasker_help">Select an operation and target, then save this action to Tasker. The action uses the current automation authorization.</string>
     <string name="tasker_access_required">Enable Automation access in FRP Mobile settings before saving this action.</string>
+    <string name="home_shortcuts">Quick actions</string>
+    <string name="home_shortcuts_summary">App icon menu and home screen shortcuts</string>
+    <string name="home_shortcuts_help">App icon menu limit: %1$d. Touch and hold the app icon to use your saved actions. You can also add an action directly to the home screen.</string>
+    <string name="home_add_action">Add quick action</string>
+    <string name="home_edit_action">Edit quick action</string>
+    <string name="home_discard_changes_title">Discard changes?</string>
+    <string name="home_save_menu">Save to menu</string>
+    <string name="home_saved">Quick action saved</string>
+    <string name="home_pin">Add to home screen</string>
+    <string name="home_pin_requested">Tried adding to the home screen. If it did not appear, check your permissions.</string>
+    <string name="home_pin_failed">Could not add the shortcut</string>
+    <string name="home_shortcuts_limit">The app icon menu is full. Edit an action or add a home screen shortcut.</string>
+    <string name="home_shortcuts_busy">The launcher is busy. Try again shortly.</string>
+    <string name="home_shortcut_removed">This quick action has been removed</string>
+    <string name="home_profile_missing">Profile unavailable. Choose a profile again in FRP Mobile.</string>
+    <string name="tasker_toggle">Toggle</string>
+    <plurals name="home_profiles_started">
+        <item quantity="one">Started %1$d profile</item>
+        <item quantity="other">Started %1$d profiles</item>
+    </plurals>
+    <plurals name="home_profiles_stopped">
+        <item quantity="one">Stopped %1$d profile</item>
+        <item quantity="other">Stopped %1$d profiles</item>
+    </plurals>
+    <string name="home_check_status">Check the connection status in the dashboard</string>
+    <string name="home_action_busy">An action is in progress</string>
+    <string name="home_action_label">%1$s · %2$s</string>
+    <string name="home_toggle">Toggle</string>
+    <string name="home_target_autostart">Auto-start</string>
+    <string name="home_widget">FRP quick action</string>
+    <string name="home_widget_description">Toggle, start, stop or restart selected profiles, or stop all profiles.</string>
 </resources>

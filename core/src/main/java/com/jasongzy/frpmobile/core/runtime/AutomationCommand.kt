@@ -2,7 +2,7 @@ package com.jasongzy.frpmobile.core.runtime
 
 data class AutomationCommand(val operation: String, val profileId: String = "", val target: String = "") {
     init {
-        require(operation in setOf("start", "stop", "restart", "stopAll")) { "INVALID_OPERATION" }
+        require(operation in operations) { "INVALID_OPERATION" }
         if (operation == "stopAll") {
             require(target.isEmpty() && profileId.isEmpty()) { "INVALID_TARGET" }
         } else {
@@ -11,6 +11,10 @@ data class AutomationCommand(val operation: String, val profileId: String = "", 
                     (target.isEmpty() && profileId.matches(Regex("[a-zA-Z0-9_-]{1,80}"))),
             ) { "INVALID_TARGET" }
         }
+    }
+
+    companion object {
+        val operations = listOf("toggle", "start", "stop", "restart", "stopAll")
     }
 
     fun toAdbCommand(packageName: String, token: String): String {

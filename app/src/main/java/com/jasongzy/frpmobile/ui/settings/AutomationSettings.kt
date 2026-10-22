@@ -1,10 +1,12 @@
 package com.jasongzy.frpmobile.ui.settings
 
+import com.jasongzy.frpmobile.integration.AUTO_START_TARGET
 import com.jasongzy.frpmobile.R
 import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.PersistableBundle
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material.icons.rounded.ToggleOn
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -56,20 +59,12 @@ import com.jasongzy.frpmobile.core.runtime.AutomationCommand
 import com.jasongzy.frpmobile.ui.components.FrpListRow
 import com.jasongzy.frpmobile.ui.components.FrpUiTokens
 import com.jasongzy.frpmobile.ui.components.SectionTitle
+import com.jasongzy.frpmobile.integration.home.HomeShortcutsDialog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-internal const val AUTO_START_TARGET = "@autoStart"
-
-internal fun operationLabel(operation: String) = when (operation) {
-    "start" -> R.string.tasker_start
-    "stop" -> R.string.tasker_stop
-    "restart" -> R.string.tasker_restart
-    else -> R.string.tasker_stop_all
-}
 
 class AutomationViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = AppGraph.repository(application)
@@ -133,6 +128,7 @@ internal fun AutomationSettings(viewModel: AutomationViewModel = androidx.lifecy
         }
     }
     var tileDialog by rememberSaveable { mutableStateOf(false) }
+    var shortcutsDialog by rememberSaveable { mutableStateOf(false) }
     var automationDialog by rememberSaveable { mutableStateOf(false) }
     var commandDialog by rememberSaveable { mutableStateOf(false) }
     var accessConfirmation by rememberSaveable { mutableStateOf<String?>(null) }
@@ -141,6 +137,12 @@ internal fun AutomationSettings(viewModel: AutomationViewModel = androidx.lifecy
     val helpLabel = stringResource(R.string.settings_automation_help)
     Column {
         SectionTitle(stringResource(R.string.settings_system_control))
+        if (Build.VERSION.SDK_INT >= 25) FrpListRow(
+            icon = Icons.Rounded.TouchApp, title = stringResource(R.string.home_shortcuts),
+            subtitle = stringResource(R.string.home_shortcuts_summary),
+            modifier = Modifier.padding(horizontal = FrpUiTokens.ScreenPadding).padding(bottom = 8.dp)
+                .clickable { shortcutsDialog = true },
+        )
         FrpListRow(
             icon = Icons.Rounded.ToggleOn, title = stringResource(R.string.settings_tile),
             subtitle = profiles.firstOrNull { it.id == settings.tileProfileId }?.name ?: stringResource(R.string.settings_choose_profile),
@@ -181,6 +183,7 @@ internal fun AutomationSettings(viewModel: AutomationViewModel = androidx.lifecy
         viewModel.selectTile(id)
         tileDialog = false
     }
+    if (shortcutsDialog && Build.VERSION.SDK_INT >= 25) HomeShortcutsDialog(profiles) { shortcutsDialog = false }
     if (commandDialog) AutomationCommandDialog(
         profiles = profiles,
         authorization = settings.automationToken,

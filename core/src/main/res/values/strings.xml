@@ -7,4 +7,5 @@
     <string name="notification_view_logs">View logs</string>
     <string name="tile_name">FRP Mobile</string>
     <string name="automation_no_targets">No available profiles are marked for auto-start. Enable auto-start for a profile on the Profiles tab in FRP Mobile, or select a single profile as the automation target. (NO_TARGETS)</string>
+    <string name="runtime_local_network_permission_required">Allow local network access in FRP Mobile to start connections</string>
 </resources>

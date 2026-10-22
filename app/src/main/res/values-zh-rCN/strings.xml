@@ -216,13 +216,13 @@
     <string name="settings_tile_no_profile">不指定配置</string>
     <string name="settings_automation">自动化控制</string>
     <string name="settings_automation_help">自动化控制说明</string>
-    <string name="settings_automation_help_text">授权 Tasker、MacroDroid 等自动化应用，通过插件或广播启动、停止和重启 frpc / frps 配置。</string>
+    <string name="settings_automation_help_text">授权 Tasker、MacroDroid 等自动化应用，通过插件或广播切换、启动、停止和重启 frpc / frps 配置，也可停止全部配置。</string>
     <string name="settings_automation_tasker_title">在 Tasker 中使用</string>
     <string name="settings_automation_tasker_text">添加“插件 → FRP Mobile”，选择操作和目标后保存。保存的动作会携带当前授权，之后可由 Tasker 的条件或任务触发。</string>
     <string name="settings_automation_copy_title">复制广播命令</string>
-    <string name="settings_automation_copy_text">开启“自动化控制”后，点击下方“复制命令”。选择启动、停止或重启，再选择单个配置或“已勾选自启的配置”；“停止全部配置”会作用于全部配置。\n\n下方命令预览会随选择更新，并填入当前令牌。命令显示后，点击“复制命令”，即可在已连接设备的电脑上通过 ADB 执行。配置 ID 会自动填入，frpc 和 frps 使用相同的调用方式。</string>
+    <string name="settings_automation_copy_text">开启“自动化控制”后，点击下方“复制命令”。选择启停切换、启动、停止或重启，再选择单个配置或“已勾选自启的所有配置”；“停止全部配置”会作用于全部配置。\n\n下方命令预览会随选择更新，并填入当前令牌。命令显示后，点击“复制命令”，即可在已连接设备的电脑上通过 ADB 执行。配置 ID 会自动填入，frpc 和 frps 使用相同的调用方式。</string>
     <string name="settings_automation_targets_title">操作与作用范围</string>
-    <string name="settings_automation_targets_text">operation 指定操作：\n• start：启动。\n• stop：停止。\n• restart：重启。\n• stopAll：停止全部配置。\n\n启动、停止和重启必须选择一种目标：\n• profile_id：指定单个配置的 ID，自启开关开启或关闭均可操作。\n• target=autoStart：操作执行时，选取所有已勾选“自启”的配置。此范围与开机自启总开关独立。\n\nprofile_id 使用配置 ID，而非显示名称或文件名。上述操作仅改变运行状态，自启设置仍由配置页开关管理。stopAll 作用于全部配置，使用时移除 profile_id 和 target 参数。</string>
+    <string name="settings_automation_targets_text">operation 指定操作：\n• toggle：逐项切换启停状态，运行中或等待重试的配置会停止，已停止的配置会启动。\n• start：启动。\n• stop：停止。\n• restart：重启。\n• stopAll：停止全部配置。\n\n启停切换、启动、停止和重启必须选择一种目标：\n• profile_id：指定单个配置的 ID，自启开关开启或关闭均可操作。\n• target=autoStart：操作执行时，选取所有已勾选“自启”的配置。此范围与开机自启总开关独立。\n\nprofile_id 使用配置 ID，而非显示名称或文件名。上述操作仅改变运行状态，自启设置仍由配置页开关管理。stopAll 作用于全部配置，使用时移除 profile_id 和 target 参数。</string>
     <string name="settings_automation_examples_title">修改命令示例</string>
     <string name="settings_automation_examples_text">以下是要替换的操作与目标参数片段。保留已复制命令中的 -n、-a 和 token；PROFILE_ID 使用复制结果中的实际 ID。\n\n停止单个配置：\n--es operation stop --es profile_id PROFILE_ID\n\n启动已勾选自启的配置：\n--es operation start --es target autoStart\n\n停止全部配置：\n--es operation stopAll</string>
     <string name="settings_automation_intent_title">在其他应用中发送 Intent</string>
@@ -242,7 +242,7 @@
     <string name="settings_external_read_help">允许当前 Android 用户下的其他应用列出配置并读取 TOML，包括其中的密码和令牌。请仅在需要时开启，并确保已安装应用可信。关闭后阻止新的读取；已获取的副本仍由接收方持有。\n\n接口：content://com.jasongzy.frpmobile.configs/profiles</string>
     <string name="settings_external_write_help">允许当前 Android 用户下的其他应用通过配置接口新建、更新 TOML。更新须提交当前修订值并通过校验，下次启动或重启时生效。新配置默认关闭自启。此权限可改变隧道目标和凭据，请仅为可信的集成开启。授权设置保存在当前设备。</string>
     <string name="settings_allow_access">允许访问</string>
-    <string name="settings_target_autostart">已勾选自启的配置</string>
+    <string name="settings_target_autostart">已勾选自启的所有配置</string>
     <string name="tasker_title">FRP Mobile</string>
     <string name="tasker_operation">操作</string>
     <string name="tasker_start">启动</string>
@@ -252,4 +252,33 @@
     <string name="tasker_save">保存</string>
     <string name="tasker_help">选择操作和目标，保存后返回 Tasker。此动作使用当前的自动化授权。</string>
     <string name="tasker_access_required">请先在 FRP Mobile 设置中开启“自动化控制”，再保存此动作。</string>
+    <string name="home_shortcuts">快捷操作</string>
+    <string name="home_shortcuts_summary">应用图标菜单与桌面快捷方式</string>
+    <string name="home_shortcuts_help">可在应用图标菜单中保存最多 %1$d 项操作，长按应用图标即可使用。也可以将操作直接添加到桌面。</string>
+    <string name="home_add_action">添加快捷操作</string>
+    <string name="home_edit_action">修改快捷操作</string>
+    <string name="home_discard_changes_title">放弃更改？</string>
+    <string name="home_save_menu">保存到菜单</string>
+    <string name="home_saved">快捷操作已保存</string>
+    <string name="home_pin">添加到桌面</string>
+    <string name="home_pin_requested">已尝试添加到桌面，如果未添加成功请检查权限</string>
+    <string name="home_pin_failed">添加快捷方式失败</string>
+    <string name="home_shortcuts_limit">应用图标菜单已满，可编辑现有操作或添加桌面快捷方式。</string>
+    <string name="home_shortcuts_busy">桌面暂时繁忙，请稍后重试。</string>
+    <string name="home_shortcut_removed">此快捷操作已移除</string>
+    <string name="home_profile_missing">配置已失效，请在 FRP Mobile 中重新选择。</string>
+    <string name="tasker_toggle">启停切换</string>
+    <plurals name="home_profiles_started">
+        <item quantity="other">已启动 %1$d 个配置</item>
+    </plurals>
+    <plurals name="home_profiles_stopped">
+        <item quantity="other">已停止 %1$d 个配置</item>
+    </plurals>
+    <string name="home_check_status">请在控制台确认连接状态</string>
+    <string name="home_action_busy">正在执行，请稍候</string>
+    <string name="home_action_label">%1$s · %2$s</string>
+    <string name="home_toggle">切换</string>
+    <string name="home_target_autostart">自启配置</string>
+    <string name="home_widget">FRP 快捷操作</string>
+    <string name="home_widget_description">切换、启动、停止或重启所选配置，也可停止全部配置。</string>
 </resources>

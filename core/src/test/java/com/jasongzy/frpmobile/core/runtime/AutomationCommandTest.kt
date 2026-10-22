@@ -9,7 +9,7 @@ import org.junit.Test
 class AutomationCommandTest {
     @Test fun generatedCommandsPreserveOperationTargetAndAuthorization() {
         val token = "test_token_".repeat(4)
-        for (operation in listOf("start", "stop", "restart")) {
+        for (operation in listOf("toggle", "start", "stop", "restart")) {
             for (command in listOf(AutomationCommand(operation, "client-1"), AutomationCommand(operation, target = "autoStart"))) {
                 val text = command.toAdbCommand("com.jasongzy.frpmobile", token)
                 assertTrue(text.startsWith("adb shell am broadcast -n com.jasongzy.frpmobile/com.jasongzy.frpmobile.core.runtime.AutomationReceiver"))

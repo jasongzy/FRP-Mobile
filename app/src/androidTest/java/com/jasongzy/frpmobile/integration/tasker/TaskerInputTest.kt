@@ -43,7 +43,7 @@ class TaskerInputTest {
 
     @Test fun taskerBundleRoundTripPreservesOperationAndTarget() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val commands = listOf("start", "stop", "restart").flatMap { operation ->
+        val commands = listOf("toggle", "start", "stop", "restart").flatMap { operation ->
             listOf(AutomationCommand(operation, "client-1"), AutomationCommand(operation, target = "autoStart"))
         } + AutomationCommand("stopAll")
         for (command in commands) {

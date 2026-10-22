@@ -1,0 +1,6 @@
+<resources>
+    <color name="home_widget_background">#244A42</color>
+    <color name="home_widget_foreground">#DCF5E9</color>
+    <color name="home_widget_secondary">#AFCEC0</color>
+    <color name="home_widget_ripple">#24DCF5E9</color>
+</resources>

@@ -1,8 +1,9 @@
 package com.jasongzy.frpmobile.integration.tasker
 
-import com.jasongzy.frpmobile.ui.settings.AUTO_START_TARGET
-import com.jasongzy.frpmobile.ui.settings.ProfileChoiceDialog
-import com.jasongzy.frpmobile.ui.settings.operationLabel
+import com.jasongzy.frpmobile.integration.AUTO_START_TARGET
+import com.jasongzy.frpmobile.integration.operationLabel
+import com.jasongzy.frpmobile.integration.controlCommand
+import com.jasongzy.frpmobile.integration.ControlActionFields
 import com.jasongzy.frpmobile.R
 import android.content.Context
 import android.os.Bundle
@@ -10,7 +11,6 @@ import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -29,7 +27,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -40,8 +37,6 @@ import com.jasongzy.frpmobile.core.data.AppGraph
 import com.jasongzy.frpmobile.core.data.FrpSettings
 import com.jasongzy.frpmobile.core.runtime.AutomationCommand
 import com.jasongzy.frpmobile.core.runtime.FrpForegroundService
-import com.jasongzy.frpmobile.ui.components.ChoiceDialog
-import com.jasongzy.frpmobile.ui.components.FrpListRow
 import com.jasongzy.frpmobile.ui.components.FrpIconButton
 import com.jasongzy.frpmobile.ui.theme.FrpMobileTheme
 import com.joaomgcd.taskerpluginlibrary.action.TaskerPluginRunnerActionNoOutput
@@ -103,15 +98,15 @@ class TaskerActivity : AppCompatActivity(), TaskerPluginConfig<FrpTaskerInput> {
     override val context: Context get() = this
     private val helper by lazy { FrpTaskerHelper(this) }
     private var operation by mutableStateOf("start")
-    private var profileId by mutableStateOf("")
-    private var target by mutableStateOf("autoStart")
+    private var selectedId by mutableStateOf(AUTO_START_TARGET)
     private var saving by mutableStateOf(false)
     private var token = ""
-    override val inputForTasker get() = TaskerInput(FrpTaskerInput(operation, profileId, target, token))
+    override val inputForTasker get() = controlCommand(operation, selectedId).let {
+        TaskerInput(FrpTaskerInput(it.operation, it.profileId, it.target, token))
+    }
     override fun assignFromInput(input: TaskerInput<FrpTaskerInput>) {
         operation = input.regular.operation
-        profileId = input.regular.profileId
-        target = input.regular.target
+        selectedId = if (input.regular.target == "autoStart" || input.regular.operation == "stopAll") AUTO_START_TARGET else input.regular.profileId
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -121,8 +116,7 @@ class TaskerActivity : AppCompatActivity(), TaskerPluginConfig<FrpTaskerInput> {
         helper.onCreate()
         savedInstanceState?.let {
             operation = it.getString("operation", operation)
-            profileId = it.getString("profile_id", profileId)
-            target = it.getString("target", target)
+            selectedId = it.getString("selected_id", selectedId)
         }
         val repository = AppGraph.repository(this)
         setContent {
@@ -130,8 +124,6 @@ class TaskerActivity : AppCompatActivity(), TaskerPluginConfig<FrpTaskerInput> {
             val currentSettings by settingsFlow.collectAsStateWithLifecycle(initialValue = null)
             val settings = currentSettings ?: return@setContent
             val profiles by repository.profiles.collectAsStateWithLifecycle(emptyList())
-            var operationDialog by rememberSaveable { mutableStateOf(false) }
-            var targetDialog by rememberSaveable { mutableStateOf(false) }
             FrpMobileTheme(
                 seedColor = settings.themeSeedColor, mode = settings.themeMode, languageMode = settings.languageMode,
             ) {
@@ -151,12 +143,12 @@ class TaskerActivity : AppCompatActivity(), TaskerPluginConfig<FrpTaskerInput> {
                             actions = {
                                 TextButton(
                                     enabled = !saving && settings.automationToken.isNotEmpty() &&
-                                        (operation == "stopAll" || target == "autoStart" || profiles.any { it.id == profileId }),
+                                        (operation == "stopAll" || selectedId == AUTO_START_TARGET || profiles.any { it.id == selectedId }),
                                     onClick = {
                                         saving = true
                                         lifecycleScope.launch {
                                             try {
-                                                AutomationCommand(operation, profileId, target)
+                                                controlCommand(operation, selectedId)
                                                 token = repository.automationToken()
                                                 check(token.isNotEmpty()) { getString(R.string.tasker_access_required) }
                                                 helper.finishForTasker()
@@ -174,37 +166,9 @@ class TaskerActivity : AppCompatActivity(), TaskerPluginConfig<FrpTaskerInput> {
                     Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
                         Text(stringResource(R.string.tasker_help), Modifier.padding(vertical = 16.dp))
                         if (settings.automationToken.isEmpty()) Text(stringResource(R.string.tasker_access_required))
-                        FrpListRow(
-                            icon = Icons.Rounded.PlayArrow, title = stringResource(R.string.tasker_operation),
-                            subtitle = stringResource(operationLabel(operation)),
-                            modifier = Modifier.clickable(enabled = !saving) { operationDialog = true },
-                        )
-                        if (operation != "stopAll") FrpListRow(
-                            icon = Icons.Rounded.Tune, title = stringResource(R.string.settings_choose_profile),
-                            subtitle = if (target == "autoStart") stringResource(R.string.settings_target_autostart)
-                                else profiles.firstOrNull { it.id == profileId }?.name ?: stringResource(R.string.settings_choose_profile),
-                            modifier = Modifier.clickable(enabled = !saving) { targetDialog = true },
-                        )
+                        ControlActionFields(profiles, operation, selectedId,
+                            { operation = it }, { selectedId = it }, !saving)
                     }
-                }
-                if (operationDialog) ChoiceDialog(
-                    title = stringResource(R.string.tasker_operation), onDismiss = { operationDialog = false },
-                    selected = stringResource(operationLabel(operation)),
-                    entries = listOf("start", "stop", "restart", "stopAll").map { value ->
-                        stringResource(operationLabel(value)) to {
-                            operation = value
-                            if (value == "stopAll") { profileId = ""; target = "" }
-                            else if (profileId.isEmpty()) target = "autoStart"
-                        }
-                    },
-                )
-                if (targetDialog) ProfileChoiceDialog(
-                    profiles, if (target == "autoStart") AUTO_START_TARGET else profileId,
-                    onDismiss = { targetDialog = false }, includeAutoStart = true,
-                ) { id ->
-                    target = if (id == AUTO_START_TARGET) "autoStart" else ""
-                    profileId = if (id == AUTO_START_TARGET) "" else id
-                    targetDialog = false
                 }
             }
         }
@@ -212,8 +176,7 @@ class TaskerActivity : AppCompatActivity(), TaskerPluginConfig<FrpTaskerInput> {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("operation", operation)
-        outState.putString("profile_id", profileId)
-        outState.putString("target", target)
+        outState.putString("selected_id", selectedId)
         super.onSaveInstanceState(outState)
     }
 }
