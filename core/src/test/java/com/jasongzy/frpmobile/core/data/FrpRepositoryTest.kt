@@ -21,6 +21,26 @@ import javax.crypto.AEADBadTagException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FrpRepositoryTest {
+    @Test fun verificationChecksSyntaxBeforeUsingTheDraftAndSelectedBackend() = runTest {
+        for (root in listOf(false, true)) {
+            val dao = MemoryDao()
+            val runtime = FakeRuntime()
+            val repository = FrpRepository(dao, MemorySettings(FrpSettings(rootMode = root)), runtime, cipher, backgroundScope)
+            val draft = profile.copy(type = FrpType.Server, toml = "bindPort = 7000", files = mapOf("ca.pem" to byteArrayOf(1)))
+            runtime.validationResult = FrpResult("INVALID_TOML", "Invalid syntax")
+            assertEquals(runtime.validationResult, repository.verify(draft))
+            assertNull(runtime.verified)
+            runtime.validationResult = FrpResult(null, "")
+            runtime.verifyResult = FrpResult("INVALID_TOML", "Unknown field")
+            assertEquals(runtime.verifyResult, repository.verify(draft))
+            assertEquals(draft to root, runtime.verified)
+            assertTrue(dao.getProfiles().isEmpty())
+            assertTrue(dao.getRuntimeStates().isEmpty())
+            assertTrue(runtime.started.isEmpty())
+            assertEquals(0, runtime.configureCount)
+        }
+    }
+
     @Test fun networkPolicyIsSynchronizedOnlyToTheRootBackend() = runTest {
         for (root in listOf(false, true)) {
             val runtime = FakeRuntime()
@@ -588,6 +608,8 @@ private class FakeRuntime : FrpRuntimeGateway {
     var stopResult = FrpResult(null, "")
     var configureResult = FrpResult(null, "")
     var validationResult = FrpResult(null, "")
+    var verifyResult = FrpResult(null, "")
+    var verified: Pair<FrpProfile, Boolean>? = null
     var pruneResult = FrpResult(null, "")
     var moduleResult = ModuleStatus()
     var capturedLogSink: FrpLogSink? = null
@@ -595,6 +617,10 @@ private class FakeRuntime : FrpRuntimeGateway {
     var configureCount = 0
     var onStart: suspend () -> Unit = {}
     override fun validateToml(toml: String) = validationResult
+    override suspend fun verify(profile: FrpProfile, useRoot: Boolean): FrpResult {
+        verified = profile to useRoot
+        return verifyResult
+    }
     override fun tlsFilePaths(toml: String) = emptyList<String>()
     override fun setLogSink(sink: FrpLogSink) { capturedLogSink = sink }
     override suspend fun start(profile: FrpProfile): FrpResult { started += profile; onStart(); return FrpResult(null, "") }

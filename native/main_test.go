@@ -1,13 +1,43 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/pelletier/go-toml/v2"
 )
+
+func TestVerificationCleansDraftFilesOnFailureAndCancellation(t *testing.T) {
+	m := testManager(t)
+	p := profile{ID: "draft", Type: "client", Toml: "auth.token = 'draft-secret'", Files: map[string][]byte{"key.pem": []byte("draft-key")}}
+	path := filepath.Join(m.bin, "libfrpc.so")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\ncat \"$3\"\nexit 1\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.verify(context.Background(), p); err == nil || strings.Contains(err.Error(), "draft-secret") {
+		t.Fatalf("verification did not return a redacted failure: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nexec sleep 300\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	timer := time.AfterFunc(100*time.Millisecond, cancel)
+	defer timer.Stop()
+	defer cancel()
+	if err := m.verify(ctx, p); !errors.Is(err, context.Canceled) {
+		t.Fatalf("verification did not cancel: %v", err)
+	}
+	files, err := os.ReadDir(m.root)
+	if err != nil || len(files) != 0 || m.needsRun() {
+		t.Fatalf("verification retained runtime data: %v, %v", files, err)
+	}
+}
 
 func TestRestoreUsesSessionIntentWithinBootAndAutostartAfterReboot(t *testing.T) {
 	for _, reboot := range []bool{false, true} {
@@ -91,7 +121,7 @@ transport.tls.keyFile = "frpmobile://\u006bey.pem"
 plugin.keyPath = 'frpmobile://key.pem'
 plugin.crtPath = 'frpmobile://key.pem.bak'`
 	dir := filepath.Join(m.root, "prepared")
-	path, secrets, err := m.prepare(p, dir)
+	path, secrets, err := m.prepare(p, dir, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +151,7 @@ plugin.crtPath = 'frpmobile://key.pem.bak'`
 	if err := os.Symlink(target, link); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := m.prepare(p, link); err == nil {
+	if _, _, err := m.prepare(p, link, true); err == nil {
 		t.Fatal("accepted symlink")
 	}
 }

@@ -249,7 +249,7 @@ func resolveFiles(value any, paths map[string]string) any {
 	return value
 }
 
-func (m *manager) prepare(p profile, dir string) (string, []string, error) {
+func (m *manager) prepare(p profile, dir string, captureLogs bool) (string, []string, error) {
 	if err := validateProfile(p); err != nil {
 		return "", nil, err
 	}
@@ -272,13 +272,15 @@ func (m *manager) prepare(p profile, dir string) (string, []string, error) {
 	var secrets []string
 	collectSecrets(values, "", &secrets)
 	sort.Slice(secrets, func(i, j int) bool { return len(secrets[i]) > len(secrets[j]) })
-	logConfig, _ := values["log"].(map[string]any)
-	if logConfig == nil {
-		logConfig = make(map[string]any)
+	if captureLogs {
+		logConfig, _ := values["log"].(map[string]any)
+		if logConfig == nil {
+			logConfig = make(map[string]any)
+		}
+		logConfig["to"] = "console"
+		logConfig["disablePrintColor"] = true
+		values["log"] = logConfig
 	}
-	logConfig["to"] = "console"
-	logConfig["disablePrintColor"] = true
-	values["log"] = logConfig
 	data, err := toml.Marshal(values)
 	if err != nil {
 		return "", nil, err
@@ -295,22 +297,30 @@ func (m *manager) executable(typ string) string {
 	return filepath.Join(m.bin, name)
 }
 
-func (m *manager) verify(p profile) error {
+func (m *manager) verify(ctx context.Context, p profile) error {
 	dir, err := os.MkdirTemp(m.root, ".verify-*")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(dir)
-	path, secrets, err := m.prepare(p, dir)
+	path, secrets, err := m.prepare(p, dir, false)
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, m.executable(p.Type), "verify", "-c", path)
+	cmd.Dir = dir
+	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 	var output limitedBuffer
 	cmd.Stdout, cmd.Stderr = &output, &output
 	if err = cmd.Run(); err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return errors.New("VERIFY_TIMEOUT: frp verification timed out")
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		return fmt.Errorf("INVALID_TOML: %v %s", err, redact(strings.TrimSpace(output.String()), secrets))
 	}
 	return nil
@@ -340,7 +350,7 @@ func (m *manager) start(p profile) error {
 	}
 	m.mu.Unlock()
 	dir := filepath.Join(m.root, "instances", p.ID)
-	path, secrets, err := m.prepare(p, dir)
+	path, secrets, err := m.prepare(p, dir, true)
 	if err != nil {
 		os.RemoveAll(dir)
 		return err
@@ -472,7 +482,7 @@ func (m *manager) retry(item *instance) {
 			m.opMu.Unlock()
 			return
 		}
-		err := m.verify(p)
+		err := m.verify(context.Background(), p)
 		if err == nil {
 			err = m.start(p)
 		}
@@ -672,7 +682,7 @@ func (m *manager) restore() error {
 	for _, item := range m.instances {
 		p := item.profile
 		if item.desired && (p.Retry || item.state.State == "pending") {
-			err := m.verify(p)
+			err := m.verify(context.Background(), p)
 			if err == nil {
 				err = m.start(p)
 			}
@@ -717,10 +727,8 @@ func (m *manager) handle(req request) response {
 				err = atomicWrite(filepath.Join(m.root, "exit.json"), data, 0600)
 			}
 		}
-	case "verify":
-		err = m.verify(req.Profile)
 	case "start", "reload":
-		if err = m.verify(req.Profile); err == nil {
+		if err = m.verify(context.Background(), req.Profile); err == nil {
 			m.mu.Lock()
 			var previous *profile
 			if item := m.instances[req.Profile.ID]; item != nil && item.cmd != nil {
@@ -830,7 +838,7 @@ func (m *manager) handle(req request) response {
 	default:
 		err = errors.New("unknown action")
 	}
-	if req.Action != "status" && req.Action != "verify" {
+	if req.Action != "status" {
 		err = errors.Join(err, m.save())
 		m.notify()
 	}
@@ -1019,6 +1027,22 @@ func call(root string, req request) (response, error) {
 }
 
 func run(args []string) error {
+	if len(args) == 3 && args[0] == "verify" {
+		var p profile
+		if err := json.NewDecoder(io.LimitReader(os.Stdin, maxInput+1)).Decode(&p); err != nil {
+			return err
+		}
+		if err := privateDir(args[1]); err != nil {
+			return err
+		}
+		ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
+		defer cancel()
+		result := response{}
+		if err := newManager(args[1], args[2], false).verify(ctx, p); err != nil {
+			result.Error = err.Error()
+		}
+		return json.NewEncoder(os.Stdout).Encode(result)
+	}
 	if len(args) == 4 && args[0] == "serve" {
 		parent, err := strconv.Atoi(args[3])
 		if err != nil {

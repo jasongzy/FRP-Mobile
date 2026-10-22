@@ -41,7 +41,7 @@ class EditorUiStateTest {
     @Test fun editsRemainPendingUntilSavedContentIsUpdated() {
         val edited = loaded
         edited.toml.insertSymbol(TomlSymbol.Quotes)
-        assertTrue(edited.copy(isBusy = true).hasUnsavedChanges)
+        assertTrue(edited.copy(operation = EditorOperation.Save).hasUnsavedChanges)
         assertTrue(edited.copy(validationMessage = "Save failed").hasUnsavedChanges)
         val saved = edited.copy(profile = profile.copy(toml = edited.toml.text.toString()))
         assertFalse(saved.hasUnsavedChanges)

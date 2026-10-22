@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strings"
@@ -114,7 +115,7 @@ func (m *manager) recoverNetwork() {
 	}
 	m.mu.Unlock()
 	for _, item := range pending {
-		err := m.verify(item.profile)
+		err := m.verify(context.Background(), item.profile)
 		if err == nil {
 			err = m.start(item.profile)
 		}

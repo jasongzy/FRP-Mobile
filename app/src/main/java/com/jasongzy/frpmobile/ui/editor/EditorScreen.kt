@@ -57,6 +57,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -104,6 +105,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
+enum class EditorOperation { Validate, Save, Restart, Certificates, Discard }
+
 data class EditorUiState(
     val profile: FrpProfile? = null,
     val isNew: Boolean = false,
@@ -111,13 +114,14 @@ data class EditorUiState(
     val name: String = "",
     val toml: TextFieldState = TextFieldState(),
     val validationMessage: String? = null,
-    val isBusy: Boolean = false,
+    val operation: EditorOperation? = null,
     val files: Map<String, ByteArray> = emptyMap(),
     val tlsMessage: String? = null,
     val tlsPathToCopy: String? = null,
     val exitRequested: Boolean = false,
     val toastMessageRes: Int? = null,
 ) {
+    val isBusy: Boolean get() = operation != null
     val hasUnsavedChanges: Boolean
         get() = profile?.let {
             isNew || it.name != name || !it.toml.contentEquals(toml.text) ||
@@ -191,14 +195,14 @@ class EditorViewModel(application: Application, private val savedStateHandle: Sa
 
     fun discard() {
         if (mutableState.value.isBusy) return
-        mutableState.update { it.copy(isBusy = true) }
+        mutableState.update { it.copy(operation = EditorOperation.Discard) }
         viewModelScope.launch {
             try {
                 closeDraft()
                 mutableState.update { it.copy(exitRequested = true) }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { reportResult(R.string.editor_draft_save_failed, e.message ?: e.javaClass.simpleName) }
-            finally { mutableState.update { it.copy(isBusy = false) } }
+            finally { mutableState.update { it.copy(operation = null) } }
         }
     }
 
@@ -246,11 +250,11 @@ class EditorViewModel(application: Application, private val savedStateHandle: Sa
     fun validate() {
         val state = mutableState.value
         if (state.isBusy || state.profile == null || state.profile.storageError) return
-        val toml = state.toml.text.toString()
-        mutableState.update { it.copy(isBusy = true, validationMessage = null) }
+        val draft = state.profile.copy(toml = state.toml.text.toString(), files = state.files)
+        mutableState.update { it.copy(operation = EditorOperation.Validate, validationMessage = null) }
         viewModelScope.launch {
             try {
-                val result = withContext(Dispatchers.IO) { repository.validateToml(toml) }
+                val result = repository.verify(draft)
                 reportResult(
                     if (result.isSuccess) R.string.editor_valid else R.string.editor_invalid,
                     if (result.isSuccess) null else result.message,
@@ -260,7 +264,7 @@ class EditorViewModel(application: Application, private val savedStateHandle: Sa
             } catch (e: Exception) {
                 reportResult(R.string.editor_invalid, e.message ?: e.javaClass.simpleName)
             } finally {
-                mutableState.update { it.copy(isBusy = false) }
+                mutableState.update { it.copy(operation = null) }
             }
         }
     }
@@ -283,7 +287,7 @@ class EditorViewModel(application: Application, private val savedStateHandle: Sa
         val state = mutableState.value
         val profile = state.profile ?: return
         if (state.isBusy) return
-        mutableState.update { it.copy(isBusy = true, validationMessage = null) }
+        mutableState.update { it.copy(operation = EditorOperation.Save, validationMessage = null) }
         viewModelScope.launch {
             try {
                 val updated = profile.copy(name = state.name, toml = state.toml.text.toString(), files = state.files)
@@ -306,7 +310,7 @@ class EditorViewModel(application: Application, private val savedStateHandle: Sa
                 if (e.message?.startsWith("CONFIG_SAVED_SYNC_FAILED") == true) reconcileSavedProfile(profile.id)
                 reportResult(R.string.editor_save_failed, saveErrorMessage(e))
             } finally {
-                mutableState.update { it.copy(isBusy = false) }
+                mutableState.update { it.copy(operation = null) }
             }
         }
     }
@@ -319,7 +323,7 @@ class EditorViewModel(application: Application, private val savedStateHandle: Sa
         val state = mutableState.value
         val profile = state.profile ?: return
         if (state.isBusy) return
-        mutableState.update { it.copy(isBusy = true, validationMessage = null) }
+        mutableState.update { it.copy(operation = EditorOperation.Restart, validationMessage = null) }
         viewModelScope.launch {
             try {
                 val updated = profile.copy(name = state.name, toml = state.toml.text.toString(), files = state.files)
@@ -345,7 +349,7 @@ class EditorViewModel(application: Application, private val savedStateHandle: Sa
                 if (e.message?.startsWith("CONFIG_SAVED_SYNC_FAILED") == true) reconcileSavedProfile(profile.id)
                 reportResult(R.string.editor_save_restart_failed, saveErrorMessage(e))
             } finally {
-                mutableState.update { it.copy(isBusy = false) }
+                mutableState.update { it.copy(operation = null) }
             }
         }
     }
@@ -371,14 +375,14 @@ class EditorViewModel(application: Application, private val savedStateHandle: Sa
 
     private fun changeTls(block: suspend () -> Pair<String, String?>) {
         if (mutableState.value.profile == null || mutableState.value.isBusy) return
-        mutableState.update { it.copy(isBusy = true) }
+        mutableState.update { it.copy(operation = EditorOperation.Certificates) }
         viewModelScope.launch {
             try {
                 val (message, path) = block()
                 mutableState.update { it.copy(tlsMessage = message, tlsPathToCopy = path) }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { mutableState.update { it.copy(tlsMessage = e.message ?: e.javaClass.simpleName) } }
-            finally { mutableState.update { it.copy(isBusy = false) } }
+            finally { mutableState.update { it.copy(operation = null) } }
         }
     }
 
@@ -447,8 +451,7 @@ fun EditorScreen(
         },
         confirmButton = {
             TextButton(onClick = viewModel::save, enabled = !state.isBusy) {
-                if (state.isBusy) CircularWavyProgressIndicator(Modifier.size(24.dp))
-                else Text(stringResource(R.string.editor_save))
+                EditorActionLabel(stringResource(R.string.editor_save), state.operation == EditorOperation.Save)
             }
         },
         dismissButton = {
@@ -551,17 +554,13 @@ fun EditorScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 FilledTonalButton(onClick = viewModel::validate, enabled = !state.isBusy && state.profile?.storageError != true) {
-                    Text(stringResource(R.string.editor_validate))
+                    EditorActionLabel(stringResource(R.string.editor_validate), state.operation == EditorOperation.Validate)
                 }
                 FilledTonalButton(onClick = viewModel::save, enabled = !state.isBusy && state.profile?.storageError != true) {
-                    Text(stringResource(R.string.editor_save))
+                    EditorActionLabel(stringResource(R.string.editor_save), state.operation == EditorOperation.Save)
                 }
                 Button(onClick = { saveAndRestartWithPermission() }, enabled = !state.isBusy && state.profile?.storageError != true) {
-                    if (state.isBusy) {
-                        CircularWavyProgressIndicator(modifier = Modifier.size(24.dp))
-                    } else {
-                        Text(stringResource(R.string.editor_save_restart))
-                    }
+                    EditorActionLabel(stringResource(R.string.editor_save_restart), state.operation == EditorOperation.Restart)
                 }
                 FrpIconButton(
                     label = stringResource(R.string.editor_tls_files),
@@ -633,6 +632,14 @@ fun EditorScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun EditorActionLabel(text: String, busy: Boolean) {
+    Box(contentAlignment = Alignment.Center) {
+        Text(text, modifier = Modifier.alpha(if (busy) 0f else 1f))
+        if (busy) CircularWavyProgressIndicator(Modifier.size(24.dp))
     }
 }
 

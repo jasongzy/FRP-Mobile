@@ -32,6 +32,7 @@ interface FrpRuntimeGateway {
     val localRuntimeRunning: Boolean
     val bootCount: Int
     fun validateToml(toml: String): FrpResult
+    suspend fun verify(profile: FrpProfile, useRoot: Boolean): FrpResult
     fun tlsFilePaths(toml: String): List<String>
     fun setLogSink(sink: FrpLogSink)
     suspend fun start(profile: FrpProfile): FrpResult
@@ -110,6 +111,14 @@ class FrpRuntimeManager(context: Context) : FrpRuntimeGateway {
         }
 
     override fun validateToml(toml: String) = validator.validate(toml)
+    override suspend fun verify(profile: FrpProfile, useRoot: Boolean): FrpResult = withContext(Dispatchers.IO) {
+        result {
+            val args = if (useRoot) {
+                listOf("su", "-c", "exec ${quote(executable)} verify /data/adb/frp-mobile /data/adb/frp-mobile/bin")
+            } else listOf(executable, "verify", root.path, bin.path)
+            JSONObject(process(args, encodeProfile(profile).toString()))
+        }
+    }
     override fun tlsFilePaths(toml: String) = validator.tlsFilePaths(toml)
     override fun setLogSink(sink: FrpLogSink) { this.sink = sink }
     override suspend fun start(profile: FrpProfile) = command("start", profile)

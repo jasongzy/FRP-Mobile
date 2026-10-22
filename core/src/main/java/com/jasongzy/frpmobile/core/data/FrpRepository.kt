@@ -312,6 +312,14 @@ class FrpRepository(
 
     fun validateToml(toml: String): FrpResult = runtimeManager.validateToml(toml)
 
+    suspend fun verify(profile: FrpProfile): FrpResult = withContext(Dispatchers.IO) {
+        val syntax = validateToml(profile.toml)
+        if (!syntax.isSuccess) return@withContext syntax
+        val files = validateManagedTlsFiles(profile, profile.files.keys)
+        if (!files.isSuccess) return@withContext files
+        runtimeManager.verify(profile, settings.first().rootMode)
+    }
+
     suspend fun requestRun(id: String): String? = withContext(Dispatchers.IO) {
         ensureRuntimeReady()
         runtimeOperationMutex.withLock { requestRunLocked(id) }

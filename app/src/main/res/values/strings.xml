@@ -78,7 +78,7 @@
     <string name="editor_validate">Validate</string>
     <string name="editor_save">Save</string>
     <string name="editor_save_restart">Save and restart</string>
-    <string name="editor_valid">TOML is valid</string>
+    <string name="editor_valid">Configuration is valid</string>
     <string name="editor_invalid">Validation failed</string>
     <string name="editor_saved">Profile saved</string>
     <string name="editor_save_failed">Save failed</string>

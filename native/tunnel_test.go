@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -8,6 +9,37 @@ import (
 	"testing"
 	"time"
 )
+
+func TestRealConfigurationVerification(t *testing.T) {
+	bin := os.Getenv("FRP_TEST_BIN")
+	if bin == "" {
+		t.Skip("FRP_TEST_BIN points to the built upstream CLI binaries")
+	}
+	m := newManager(t.TempDir(), bin, false)
+	for _, test := range []struct {
+		name, typ, toml string
+		valid           bool
+	}{
+		{"client", "client", "serverAddr = 'localhost'", true},
+		{"server", "server", "bindPort = 7000", true},
+		{"unknown field", "client", "serverAdress = 'localhost'", false},
+		{"value type", "client", "serverPort = '7000'", false},
+		{"enum", "client", "transport.protocol = 'invalid'", false},
+		{"port range", "server", "bindPort = 99999", false},
+		{"log type", "client", "log.to = 123", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := m.verify(context.Background(), profile{ID: "draft", Type: test.typ, Toml: test.toml})
+			if (err == nil) != test.valid {
+				t.Fatalf("unexpected verification result: %v", err)
+			}
+		})
+	}
+	files, err := os.ReadDir(m.root)
+	if err != nil || len(files) != 0 {
+		t.Fatalf("verification retained temporary files: %v, %v", files, err)
+	}
+}
 
 func freePort(t *testing.T) int {
 	t.Helper()
