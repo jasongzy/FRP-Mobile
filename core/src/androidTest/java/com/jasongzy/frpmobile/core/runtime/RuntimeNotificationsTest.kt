@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.os.Handler
 import android.os.Build
 import android.os.Looper
+import android.os.ParcelFileDescriptor
 import android.service.notification.StatusBarNotification
 import androidx.test.platform.app.InstrumentationRegistry
 import com.jasongzy.frpmobile.core.data.AppGraph
@@ -55,8 +56,14 @@ class RuntimeNotificationsTest {
     }
 
     @Test fun moduleNotificationTracksBackendWithoutActivityAndStopsThroughItsPendingIntent() = runBlocking(Dispatchers.IO) {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
         check(context.packageName == "com.jasongzy.frpmobile.core.test")
+        fun setPromotionPermission(mode: String) {
+            ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(
+                "cmd appops set ${context.packageName} POST_PROMOTED_NOTIFICATIONS $mode",
+            )).use { it.readBytes() }
+        }
         val manager = context.getSystemService(NotificationManager::class.java)
         val settings = SettingsStore(FrpDatabase.get(context))
         settings.setRootMode(true)
@@ -95,10 +102,26 @@ class RuntimeNotificationsTest {
             assertTrue(first.flags and Notification.FLAG_ONGOING_EVENT != 0)
             assertFalse(first.extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING))
             for (enabled in listOf(true, false)) {
+                if (Build.VERSION.SDK_INT >= 36 && enabled) setPromotionPermission("ignore")
                 settings.setLiveUpdatesEnabled(enabled)
                 withTimeout(5000) {
                     while (moduleNotification().notification.extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING) != enabled) delay(25)
                 }
+                if (Build.VERSION.SDK_INT >= 36 && enabled) {
+                    assertFalse(manager.canPostPromotedNotifications())
+                    assertEquals(0, moduleNotification().notification.flags and Notification.FLAG_PROMOTED_ONGOING)
+                    setPromotionPermission("allow")
+                    RuntimeNotifications.requestRefresh()
+                    withTimeout(5000) {
+                        while (moduleNotification().notification.flags and Notification.FLAG_PROMOTED_ONGOING == 0) delay(25)
+                    }
+                }
+                manager.cancel(initial.id)
+                withTimeout(5000) { while (manager.activeNotifications.isNotEmpty()) delay(25) }
+                delay(2200)
+                assertTrue(manager.activeNotifications.isEmpty())
+                RuntimeNotifications.requestRefresh()
+                assertEquals(enabled, moduleNotification().notification.extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING))
                 assertEquals(0, backend.stopCalls)
             }
             val firstQueries = backend.states
@@ -115,7 +138,9 @@ class RuntimeNotificationsTest {
             withTimeout(5000) { while (manager.activeNotifications.isNotEmpty()) delay(25) }
             assertEquals(0, backend.stopCalls)
             val queriesAfterStop = backend.queryCalls
+            RuntimeNotifications.requestRefresh()
             delay(2200)
+            assertTrue(manager.activeNotifications.isEmpty())
             assertEquals(queriesAfterStop, backend.queryCalls)
             observer.cancelAndJoin()
             manager.notify(initial.id, first)
@@ -161,6 +186,7 @@ class RuntimeNotificationsTest {
             backend.stopGate?.complete(Unit)
             observer.cancelAndJoin()
             manager.cancelAll()
+            if (Build.VERSION.SDK_INT >= 36) setPromotionPermission("default")
             settings.setLiveUpdatesEnabled(false)
             settings.setRootMode(false)
             field.set(AppGraph, previous)

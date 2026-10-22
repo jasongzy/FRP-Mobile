@@ -82,6 +82,7 @@ import com.jasongzy.frpmobile.core.data.AppGraph
 import com.jasongzy.frpmobile.core.data.FrpSettings
 import com.jasongzy.frpmobile.core.frp.FrpType
 import com.jasongzy.frpmobile.core.runtime.FrpForegroundService
+import com.jasongzy.frpmobile.core.runtime.RuntimeNotifications
 import com.jasongzy.frpmobile.ui.theme.FrpMobileTheme
 import com.jasongzy.frpmobile.ui.components.FrpIconButton
 import com.jasongzy.frpmobile.ui.dashboard.DashboardScreen
@@ -120,8 +121,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 if (repository.settings.first().rootMode) repository.syncRuntimeStates()
+                RuntimeNotifications.requestRefresh()
             }
         }
         setContent {

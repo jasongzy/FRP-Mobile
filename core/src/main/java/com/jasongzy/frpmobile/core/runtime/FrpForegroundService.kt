@@ -74,6 +74,17 @@ class FrpForegroundService : Service() {
         super.onCreate()
         RuntimeNotifications.createChannel(this)
         startScreenOffKeepAliveMonitoring()
+        scope.launch {
+            RuntimeNotifications.refreshRequests.collect {
+                synchronized(this@FrpForegroundService) {
+                    if (!destroyed) notifiedCount?.let { count ->
+                        getSystemService(NotificationManager::class.java).notify(
+                            RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(this@FrpForegroundService, count, liveUpdatesEnabled),
+                        )
+                    }
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {

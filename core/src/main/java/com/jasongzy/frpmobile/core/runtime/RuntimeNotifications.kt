@@ -19,12 +19,19 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.isActive
 
 object RuntimeNotifications {
     const val SERVICE_ID = 22333
     private const val MODULE_ID = 22334
     private const val CHANNEL_ID = "frp_runtime"
+    internal val refreshRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    fun requestRefresh() {
+        refreshRequests.tryEmit(Unit)
+    }
 
     fun createChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -77,18 +84,19 @@ object RuntimeNotifications {
             combine(repository.settings, repository.runtimeStates) { settings, states ->
                 val count = FrpRuntimePolicy.moduleNotificationCount(settings.rootMode, states)
                 Triple(settings.rootMode && (settings.runtimeSyncPending || count != null), count, settings.liveUpdatesEnabled)
-            }.distinctUntilChanged().collectLatest { (active, count, liveUpdates) ->
-                if (count == null) {
-                    manager.cancel(MODULE_ID)
-                } else if (Build.VERSION.SDK_INT < 33 ||
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-                    manager.notify(MODULE_ID, build(context, count, liveUpdates))
+            }.distinctUntilChanged().combine(refreshRequests.onStart { emit(Unit) }) { state, _ -> state }
+                .collectLatest { (active, count, liveUpdates) ->
+                    if (count == null) {
+                        manager.cancel(MODULE_ID)
+                    } else if (Build.VERSION.SDK_INT < 33 ||
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                        manager.notify(MODULE_ID, build(context, count, liveUpdates))
+                    }
+                    while (active && currentCoroutineContext().isActive) {
+                        repository.syncRuntimeStates()
+                        delay(2000)
+                    }
                 }
-                while (active && currentCoroutineContext().isActive) {
-                    repository.syncRuntimeStates()
-                    delay(2000)
-                }
-            }
         } finally {
             manager.cancel(MODULE_ID)
         }
