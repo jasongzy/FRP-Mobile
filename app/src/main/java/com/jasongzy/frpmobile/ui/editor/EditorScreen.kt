@@ -244,7 +244,7 @@ class EditorViewModel(application: Application, private val savedStateHandle: Sa
     }
 
     fun setName(name: String) {
-        mutableState.update { it.copy(name = name) }
+        mutableState.update { if (it.isBusy) it else it.copy(name = name) }
     }
 
     fun validate() {
@@ -532,7 +532,7 @@ fun EditorScreen(
         ) {
             OutlinedTextField(
                 value = state.name,
-                enabled = !state.isBusy && state.profile?.storageError != true,
+                enabled = state.profile?.storageError != true,
                 onValueChange = viewModel::setName,
                 label = { Text(stringResource(R.string.editor_name)) },
                 singleLine = true,
@@ -540,7 +540,8 @@ fun EditorScreen(
             )
             TomlEditor(
                 state = state.toml,
-                enabled = !state.isBusy && state.profile?.storageError != true,
+                enabled = state.profile?.storageError != true,
+                busy = state.isBusy,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
             state.validationMessage?.let { message ->

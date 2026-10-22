@@ -35,7 +35,7 @@ import com.jasongzy.frpmobile.ui.components.FrpIconButton
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-internal fun TomlEditor(state: TextFieldState, enabled: Boolean, modifier: Modifier = Modifier) {
+internal fun TomlEditor(state: TextFieldState, enabled: Boolean, busy: Boolean, modifier: Modifier = Modifier) {
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     fun edit(action: () -> Unit) {
@@ -48,6 +48,7 @@ internal fun TomlEditor(state: TextFieldState, enabled: Boolean, modifier: Modif
         TomlTextField(
             state = state,
             enabled = enabled,
+            busy = busy,
             modifier = Modifier.weight(1f).fillMaxWidth().focusRequester(focusRequester),
         )
         Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -55,7 +56,7 @@ internal fun TomlEditor(state: TextFieldState, enabled: Boolean, modifier: Modif
                 FrpIconButton(
                     label = stringResource(R.string.editor_undo),
                     modifier = Modifier.size(48.dp),
-                    enabled = enabled && state.undoState.canUndo,
+                    enabled = enabled && !busy && state.undoState.canUndo,
                     onClick = { edit { state.undoState.undo() } },
                 ) {
                     Icon(Icons.AutoMirrored.Rounded.Undo, contentDescription = null)
@@ -63,7 +64,7 @@ internal fun TomlEditor(state: TextFieldState, enabled: Boolean, modifier: Modif
                 FrpIconButton(
                     label = stringResource(R.string.editor_redo),
                     modifier = Modifier.size(48.dp),
-                    enabled = enabled && state.undoState.canRedo,
+                    enabled = enabled && !busy && state.undoState.canRedo,
                     onClick = { edit { state.undoState.redo() } },
                 ) {
                     Icon(Icons.AutoMirrored.Rounded.Redo, contentDescription = null)
@@ -72,7 +73,7 @@ internal fun TomlEditor(state: TextFieldState, enabled: Boolean, modifier: Modif
                     FrpIconButton(
                         label = stringResource(symbol.descriptionRes),
                         modifier = Modifier.size(48.dp),
-                        enabled = enabled,
+                        enabled = enabled && !busy,
                         onClick = { edit { state.insertSymbol(symbol) } },
                     ) {
                         Text(

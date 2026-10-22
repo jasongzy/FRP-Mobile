@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.text.input.OutputTransformation
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +34,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
@@ -52,7 +54,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-internal fun TomlTextField(state: TextFieldState, enabled: Boolean, modifier: Modifier = Modifier) {
+internal fun TomlTextField(state: TextFieldState, enabled: Boolean, busy: Boolean, modifier: Modifier = Modifier) {
     val text = state.text.toString()
     val lineStarts = remember(text) { tomlLineStarts(text) }
     val syntax by produceState<TomlSyntax?>(null, text) {
@@ -105,10 +107,12 @@ internal fun TomlTextField(state: TextFieldState, enabled: Boolean, modifier: Mo
                 keyboardOptions = KeyboardOptions(autoCorrectEnabled = false),
                 interactionSource = interactionSource,
                 cursorBrush = SolidColor(colors.primary),
+                // Keep the input session and keyboard state while editor actions run.
+                inputTransformation = InputTransformation { if (busy) revertAllChanges() },
                 outputTransformation = transformation,
                 scrollState = scroll,
                 onTextLayout = { layout = it() },
-                modifier = Modifier.weight(1f).semantics { contentDescription = label },
+                modifier = Modifier.weight(1f).onPreviewKeyEvent { busy }.semantics { contentDescription = label },
                 decorator = { innerTextField ->
                     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                         Row(Modifier.fillMaxSize()) {
