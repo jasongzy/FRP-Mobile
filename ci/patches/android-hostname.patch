@@ -1,0 +1,72 @@
+--- a/client/control_session.go
++++ b/client/control_session.go
+@@ -20,7 +20,6 @@
+ 	"fmt"
+ 	"io"
+ 	"net"
+-	"os"
+ 	"runtime"
+ 	"time"
+ 
+@@ -31,6 +30,7 @@
+ 	"github.com/fatedier/frp/pkg/msg"
+ 	"github.com/fatedier/frp/pkg/proto/wire"
+ 	netpkg "github.com/fatedier/frp/pkg/util/net"
++	"github.com/fatedier/frp/pkg/util/system"
+ 	"github.com/fatedier/frp/pkg/util/version"
+ 	"github.com/fatedier/frp/pkg/vnet"
+ )
+@@ -104,7 +104,7 @@
+ }
+ 
+ func (d *controlSessionDialer) buildLoginMsg(previousRunID string) (*msg.Login, error) {
+-	hostname, _ := os.Hostname()
++	hostname := system.Hostname()
+ 	loginMsg := &msg.Login{
+ 		Arch:      runtime.GOARCH,
+ 		Os:        runtime.GOOS,
+--- a/pkg/util/system/system.go
++++ b/pkg/util/system/system.go
+@@ -16,7 +16,14 @@
+ 
+ package system
+ 
++import "os"
++
+ // EnableCompatibilityMode enables compatibility mode for different system.
+ // For example, on Android, the inability to obtain the correct time zone will result in incorrect log time output.
+ func EnableCompatibilityMode() {
+ }
++
++func Hostname() string {
++	hostname, _ := os.Hostname()
++	return hostname
++}
+--- a/pkg/util/system/system_android.go
++++ b/pkg/util/system/system_android.go
+@@ -17,10 +17,25 @@
+ import (
+ 	"context"
+ 	"net"
++	"os"
+ 	"os/exec"
+ 	"strings"
+ 	"time"
+ )
++
++func Hostname() string {
++	hostname, _ := os.Hostname()
++	if hostname != "" && hostname != "localhost" {
++		return hostname
++	}
++	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
++	defer cancel()
++	out, err := exec.CommandContext(ctx, "/system/bin/getprop", "net.hostname").Output()
++	if value := strings.TrimSpace(string(out)); err == nil && value != "" {
++		return value
++	}
++	return hostname
++}
+ 
+ func EnableCompatibilityMode() {
+ 	fixTimezone()

@@ -1,0 +1,10 @@
+<resources>
+    <string name="notification_channel_name">frp 运行服务</string>
+    <string name="notification_running_title">frp 正在运行</string>
+    <string name="notification_running_content">%1$d 个实例正在运行</string>
+    <string name="notification_open_app">打开应用</string>
+    <string name="notification_stop_all">停止全部</string>
+    <string name="notification_view_logs">查看日志</string>
+    <string name="tile_name">FRP Mobile</string>
+    <string name="automation_no_targets">没有可用的自启配置。请在 FRP Mobile 的配置页为所需配置开启“自启”，或将自动化目标改为单个配置。（NO_TARGETS）</string>
+</resources>

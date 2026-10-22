@@ -1,0 +1,21 @@
+name: Follow frp releases
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Official stable frp tag (empty = latest)"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/android.yml
+    with:
+      follow-upstream: true
+      frp-tag: ${{ inputs.tag || '' }}
+    secrets: inherit

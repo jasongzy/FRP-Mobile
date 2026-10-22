@@ -1,0 +1,14 @@
+.gradle/
+.kotlin/
+__pycache__/
+**/build/
+local.properties
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.apk
+*.aar
+.idea/
+app/src/main/jniLibs/
+native/.tools/

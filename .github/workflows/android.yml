@@ -1,0 +1,174 @@
+name: Android
+
+on:
+  push:
+    tags: ["[0-9]*.[0-9]*.[0-9]*", "!*-*"]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      follow-upstream:
+        description: "Check for a stable upstream release"
+        type: boolean
+        default: false
+      frp-tag:
+        description: "Official stable frp tag (empty = latest)"
+        type: string
+        default: ""
+
+concurrency:
+  group: android-${{ (inputs.follow-upstream || github.ref_type == 'tag') && 'release' || github.ref }}
+  cancel-in-progress: false
+  queue: max
+
+permissions:
+  contents: read
+
+env:
+  APP_NAME: frp-mobile
+  APP_DISPLAY_NAME: FRP Mobile
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ORG_GRADLE_PROJECT_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      SOURCE_TAG: ${{ !inputs.follow-upstream && github.ref_type == 'tag' && github.ref_name || '' }}
+      FRP_TAG: ${{ inputs.frp-tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.follow-upstream && github.event.repository.default_branch || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Prepare or resume release
+        id: plan
+        if: inputs.follow-upstream || github.ref_type == 'tag'
+        shell: bash
+        run: python ci/release.py prepare --source-tag "$SOURCE_TAG" --frp-tag "$FRP_TAG"
+      - name: Configure release signing
+        if: steps.plan.outputs.build == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$ANDROID_KEYSTORE_BASE64" ||
+                -z "$ORG_GRADLE_PROJECT_RELEASE_STORE_PASSWORD" ||
+                -z "$ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS" ||
+                -z "$ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD" ]]; then
+            echo "::error::SIGNING_REQUIRED: configure ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD before publication."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          echo "ORG_GRADLE_PROJECT_RELEASE_STORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+      - uses: actions/setup-java@v5
+        if: steps.plan.outputs.build != 'false'
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: actions/setup-go@v7
+        if: steps.plan.outputs.build != 'false'
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - name: Integrate pinned frp release
+        if: steps.plan.outputs.build == 'true'
+        run: python ci/release.py integrate
+      - uses: actions/setup-node@v6
+        if: steps.plan.outputs.build != 'false'
+        with:
+          node-version: 26
+      - uses: android-actions/setup-android@v4
+        if: steps.plan.outputs.build != 'false'
+        with:
+          packages: "platform-tools platforms;android-37.2 build-tools;37.0.0 ndk;30.0.16248370"
+      - uses: gradle/actions/setup-gradle@v6
+        if: steps.plan.outputs.build != 'false'
+      - name: Install native build dependencies
+        if: steps.plan.outputs.build != 'false'
+        run: python -m pip install tqdm
+      - name: Test CI scripts
+        if: steps.plan.outputs.build == ''
+        run: python -m unittest discover -s ci -p "test_*.py"
+      - name: Build patched Android cores
+        if: steps.plan.outputs.build != 'false'
+        run: python ci/build-native.py
+      - name: Test native runtime
+        if: steps.plan.outputs.build == '' || (steps.plan.outputs.build == 'true' && steps.plan.outputs.frp_changed == 'true')
+        working-directory: native
+        env:
+          RELEASE_BUILD: ${{ steps.plan.outputs.build }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .tools/host
+          go build -mod=readonly -modfile=.tools/build.mod -tags=noweb -o .tools/host/libfrpc.so github.com/fatedier/frp/cmd/frpc
+          go build -mod=readonly -modfile=.tools/build.mod -tags=noweb -o .tools/host/libfrps.so github.com/fatedier/frp/cmd/frps
+          if [[ "$RELEASE_BUILD" == true ]]; then
+            FRP_TEST_BIN="$PWD/.tools/host" go test -count=1 -run '^TestRealTunnelAndInstanceIsolation$' .
+          else
+            FRP_TEST_BIN="$PWD/.tools/host" sudo --preserve-env=PATH,HOME,FRP_TEST_BIN go test -race ./...
+          fi
+      - name: Commit checked integration and release version
+        if: steps.plan.outputs.build == 'true'
+        run: python ci/release.py commit
+      - name: Select build variant
+        id: build
+        if: steps.plan.outputs.build != 'false'
+        env:
+          RELEASE_BUILD: ${{ steps.plan.outputs.build }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_tag="$(python ci/release.py tag)"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          if [[ "$RELEASE_BUILD" == true ]]; then
+            echo "variant=Release" >> "$GITHUB_OUTPUT"
+            echo "directory=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "variant=Debug" >> "$GITHUB_OUTPUT"
+            echo "directory=debug" >> "$GITHUB_OUTPUT"
+          fi
+          chmod +x gradlew
+      - name: Check and build APK
+        if: steps.plan.outputs.build != 'false'
+        run: >-
+          ./gradlew --no-daemon
+          ${{ steps.build.outputs.directory == 'debug' && 'testDebugUnitTest' || '' }}
+          :app:lint${{ steps.build.outputs.variant }}
+          :app:assemble${{ steps.build.outputs.variant }}
+      - name: Verify and package APK
+        if: steps.plan.outputs.build != 'false'
+        shell: bash
+        env:
+          VARIANT: ${{ steps.build.outputs.directory }}
+          RELEASE_TAG: ${{ steps.build.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          apk="app/build/outputs/apk/$VARIANT/app-$VARIANT.apk"
+          output="${APP_NAME}-${RELEASE_TAG}-${VARIANT}.apk"
+          python ci/verify-apk.py "$apk"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$apk" | tee "$RUNNER_TEMP/signature.txt"
+          grep -q 'v2 scheme.*true' "$RUNNER_TEMP/signature.txt"
+          grep -q 'v3 scheme.*true' "$RUNNER_TEMP/signature.txt"
+          cp "$apk" "$output"
+          sha256sum "$output" > "${output}.sha256"
+      - uses: actions/upload-artifact@v7
+        if: steps.plan.outputs.build != 'false'
+        with:
+          path: ${{ env.APP_NAME }}-${{ steps.build.outputs.release_tag }}-${{ steps.build.outputs.directory }}.apk
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+      - name: Publish GitHub release
+        if: steps.plan.outputs.build == 'true'
+        run: python ci/release.py publish

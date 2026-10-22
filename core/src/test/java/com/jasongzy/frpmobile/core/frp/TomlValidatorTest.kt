@@ -1,0 +1,61 @@
+package com.jasongzy.frpmobile.core.frp
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class TomlValidatorTest {
+    private val validator = TomlValidator()
+
+    @Test fun malformedTlsValueDoesNotCrashPathInspection() {
+        for (toml in listOf("transport = 123", "transport.tls = false", "transport.tls.keyFile = 123")) {
+            assertTrue(validator.tlsFilePaths(toml).isEmpty())
+        }
+        assertEquals(listOf("frpmobile://key.pem"), validator.tlsFilePaths("transport.tls.keyFile = 'frpmobile://key.pem'"))
+    }
+
+    @Test
+    fun validTomlPasses() {
+        val result = validator.validate(
+            """
+            serverAddr = "127.0.0.1"
+            serverPort = 7000
+
+            [[proxies]]
+            name = "nas-web"
+            type = "tcp"
+            localIP = "127.0.0.1"
+            localPort = 8080
+            remotePort = 8080
+            """.trimIndent(),
+        )
+
+        assertTrue(result.isSuccess)
+        assertNull(result.code)
+    }
+
+    @Test
+    fun invalidTomlReturnsInvalidTomlCode() {
+        val result = validator.validate("serverAddr = ")
+
+        assertEquals("INVALID_TOML", result.code)
+        assertTrue(result.message.isNotBlank())
+    }
+
+    @Test
+    fun suggestTypeDetectsClientAndServer() {
+        assertEquals(
+            FrpType.Client,
+            validator.suggestType(
+                """
+                serverAddr = "127.0.0.1"
+                serverPort = 7000
+                """.trimIndent(),
+            ),
+        )
+        assertEquals(FrpType.Server, validator.suggestType("bindPort = 7000"))
+        assertNull(validator.suggestType(""))
+        assertNull(validator.suggestType("serverAddr = "))
+    }
+}
