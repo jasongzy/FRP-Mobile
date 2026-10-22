@@ -11,4 +11,5 @@ keystore.properties
 *.aar
 .idea/
 app/src/main/jniLibs/
+app/src/main/assets/frp-fields.json
 native/.tools/

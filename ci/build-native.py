@@ -81,6 +81,13 @@ if __name__ == "__main__":
         cwd=native,
         check=True,
     )
+    fields = subprocess.check_output(
+        [go, "run", "-mod=readonly", "-modfile=" + modfile, "./cmd/config-fields", source], cwd=native
+    )
+    assets = os.path.join(ROOT, "app", "src", "main", "assets")
+    os.makedirs(assets, exist_ok=True)
+    with open(os.path.join(assets, "frp-fields.json"), "wb") as file:
+        file.write(fields)
     for abi, (arch, target) in tqdm(TARGETS.items(), desc="Android cores", dynamic_ncols=True):
         compiler = os.path.join(clang_dir, target + "24-clang" + (".cmd" if os.name == "nt" else ""))
         assert os.path.isfile(compiler), compiler

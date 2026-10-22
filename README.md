@@ -12,7 +12,7 @@ A native Android app for managing frpc and frps.
 
 - Material 3 native interface
 - Run multiple client and server configurations independently
-- TOML editor with syntax highlighting, quick symbol input and TLS certificate management
+- TOML editor with syntax highlighting, field completion, quick symbol input and TLS certificate management
 - Browse and search logs
 - Import and export configurations
 - Keep connections running through a foreground service, with boot start and the option to hide the app from Recents

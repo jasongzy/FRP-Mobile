@@ -85,6 +85,7 @@ dependencies {
     implementation(libs.material.kolor)
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
+    testImplementation(libs.json)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.junit)
 }
@@ -94,11 +95,20 @@ val verifyNativeBinaries = tasks.register("verifyNativeBinaries") {
         listOf("frpc", "frps", "frpmobile").map { file("src/main/jniLibs/$abi/lib$it.so") }
     }
     inputs.files(binaries)
+    val fields = file("src/main/assets/frp-fields.json")
+    val frpVersion = providers.gradleProperty("FRP_VERSION").get()
+    inputs.file(fields)
+    inputs.property("frpVersion", frpVersion)
     doLast {
         binaries.forEach { binary ->
             check(binary.isFile && binary.length() > 500_000) {
                 "Missing native core: ${binary.name}. Run python ci/build-native.py before building."
             }
+        }
+        check(fields.isFile) { "Missing frp completion fields. Run python ci/build-native.py before building." }
+        val metadata = groovy.json.JsonSlurper().parse(fields) as Map<*, *>
+        check(metadata["frpVersion"] == frpVersion) {
+            "Stale frp completion fields. Run python ci/build-native.py before building."
         }
     }
 }

@@ -540,6 +540,7 @@ fun EditorScreen(
             )
             TomlEditor(
                 state = state.toml,
+                type = state.profile?.type ?: FrpType.Client,
                 enabled = state.profile?.storageError != true,
                 busy = state.isBusy,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
