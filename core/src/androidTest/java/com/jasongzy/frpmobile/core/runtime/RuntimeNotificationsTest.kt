@@ -5,12 +5,14 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.os.Handler
+import android.os.Build
 import android.os.Looper
 import android.service.notification.StatusBarNotification
 import androidx.test.platform.app.InstrumentationRegistry
 import com.jasongzy.frpmobile.core.data.AppGraph
 import com.jasongzy.frpmobile.core.data.FrpDatabase
 import com.jasongzy.frpmobile.core.data.FrpRepository
+import com.jasongzy.frpmobile.core.data.FrpSettings
 import com.jasongzy.frpmobile.core.data.KeystoreConfigCipher
 import com.jasongzy.frpmobile.core.data.SettingsStore
 import com.jasongzy.frpmobile.core.frp.FrpInstanceStatus
@@ -35,6 +37,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RuntimeNotificationsTest {
+    @Test fun liveUpdatesRequireOptInAndRunningInstances() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        assertFalse(FrpSettings().liveUpdatesEnabled)
+        val standard = RuntimeNotifications.build(context, 2)
+        assertFalse(standard.extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING))
+        assertFalse(RuntimeNotifications.build(context, 0, true).extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING))
+        val live = RuntimeNotifications.build(context, 2, true)
+        assertTrue(live.extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING))
+        assertTrue(live.flags and Notification.FLAG_ONGOING_EVENT != 0)
+        if (Build.VERSION.SDK_INT >= 36) {
+            assertTrue(live.hasPromotableCharacteristics())
+            assertEquals(context.getString(R.string.notification_running_short, 2), live.shortCriticalText)
+        }
+        assertEquals(context.getString(R.string.notification_running_content, 2), live.extras.getCharSequence(Notification.EXTRA_TEXT))
+        assertEquals(standard.actions.first().actionIntent, live.actions.first().actionIntent)
+    }
+
     @Test fun moduleNotificationTracksBackendWithoutActivityAndStopsThroughItsPendingIntent() = runBlocking(Dispatchers.IO) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName == "com.jasongzy.frpmobile.core.test")
@@ -74,6 +93,14 @@ class RuntimeNotificationsTest {
             val first = initial.notification
             assertEquals(context.getString(R.string.notification_running_content, 1), first.extras.getCharSequence(Notification.EXTRA_TEXT))
             assertTrue(first.flags and Notification.FLAG_ONGOING_EVENT != 0)
+            assertFalse(first.extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING))
+            for (enabled in listOf(true, false)) {
+                settings.setLiveUpdatesEnabled(enabled)
+                withTimeout(5000) {
+                    while (moduleNotification().notification.extras.getBoolean(Notification.EXTRA_REQUEST_PROMOTED_ONGOING) != enabled) delay(25)
+                }
+                assertEquals(0, backend.stopCalls)
+            }
             val firstQueries = backend.states
             observer.cancelAndJoin()
             withTimeout(5000) { while (manager.activeNotifications.isNotEmpty()) delay(25) }
@@ -134,6 +161,7 @@ class RuntimeNotificationsTest {
             backend.stopGate?.complete(Unit)
             observer.cancelAndJoin()
             manager.cancelAll()
+            settings.setLiveUpdatesEnabled(false)
             settings.setRootMode(false)
             field.set(AppGraph, previous)
             repositoryScope.cancel()

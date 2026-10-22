@@ -624,6 +624,7 @@ private class MemorySettings(initial: FrpSettings = FrpSettings()) : SettingsGat
     override suspend fun setRootMode(enabled: Boolean) { state.value = state.value.copy(rootMode = enabled) }
     override suspend fun setLaunchStartEnabled(enabled: Boolean) { state.value = state.value.copy(launchStartEnabled = enabled) }
     override suspend fun setExcludeFromRecents(enabled: Boolean) { state.value = state.value.copy(excludeFromRecents = enabled) }
+    override suspend fun setLiveUpdatesEnabled(enabled: Boolean) { state.value = state.value.copy(liveUpdatesEnabled = enabled) }
     override suspend fun setExternalReadEnabled(enabled: Boolean) { state.value = state.value.copy(externalReadEnabled = enabled) }
     override suspend fun setExternalWriteEnabled(enabled: Boolean) { state.value = state.value.copy(externalWriteEnabled = enabled) }
     override suspend fun setAutomationToken(encrypted: String) { state.value = state.value.copy(automationToken = encrypted) }

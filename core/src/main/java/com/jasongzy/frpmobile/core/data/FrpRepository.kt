@@ -714,6 +714,7 @@ class FrpRepository(
 
     suspend fun setLaunchStartEnabled(enabled: Boolean) = settingsStore.setLaunchStartEnabled(enabled)
     suspend fun setExcludeFromRecents(enabled: Boolean) = settingsStore.setExcludeFromRecents(enabled)
+    suspend fun setLiveUpdatesEnabled(enabled: Boolean) = settingsStore.setLiveUpdatesEnabled(enabled)
     suspend fun setExternalReadEnabled(enabled: Boolean) = runtimeOperationMutex.withLock { settingsStore.setExternalReadEnabled(enabled) }
     suspend fun setExternalWriteEnabled(enabled: Boolean) = runtimeOperationMutex.withLock { settingsStore.setExternalWriteEnabled(enabled) }
 

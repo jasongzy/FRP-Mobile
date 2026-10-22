@@ -15,6 +15,8 @@ import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.Transaction
 import androidx.room.ColumnInfo
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.jasongzy.frpmobile.core.frp.FrpInstanceStatus
 import com.jasongzy.frpmobile.core.frp.FrpLog
 import com.jasongzy.frpmobile.core.frp.FrpProfile
@@ -241,7 +243,7 @@ interface FrpDao {
 
 @Database(
     entities = [FrpSettings::class, FrpProfileEntity::class, CertificateEntity::class, FrpRuntimeStateEntity::class, FrpLogEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(FrpTypeConverters::class)
@@ -257,7 +259,11 @@ abstract class FrpDatabase : RoomDatabase() {
                     context.applicationContext,
                     FrpDatabase::class.java,
                     "frp-mobile.db",
-                ).build().also { instance = it }
+                ).addMigrations(object : Migration(3, 4) {
+                    override fun migrate(db: SupportSQLiteDatabase) {
+                        db.execSQL("ALTER TABLE settings ADD COLUMN liveUpdatesEnabled INTEGER NOT NULL DEFAULT 0")
+                    }
+                }).build().also { instance = it }
             }
     }
 }

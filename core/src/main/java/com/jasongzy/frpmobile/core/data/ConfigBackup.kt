@@ -21,6 +21,7 @@ object ConfigBackupFormat {
             .put("settings", JSONObject()
                 .put("launchStart", settings.launchStartEnabled)
                 .put("excludeFromRecents", settings.excludeFromRecents)
+                .put("liveUpdates", settings.liveUpdatesEnabled)
                 .put("bootStart", settings.bootStartEnabled)
                 .put("networkReconnect", settings.networkReconnectEnabled)
                 .put("autoRetry", settings.autoRetryEnabled)
@@ -76,6 +77,7 @@ object ConfigBackupFormat {
         return ConfigBackup(profiles, FrpSettings(
             launchStartEnabled = settings.getBoolean("launchStart"),
             excludeFromRecents = settings.getBoolean("excludeFromRecents"),
+            liveUpdatesEnabled = if (settings.has("liveUpdates")) settings.getBoolean("liveUpdates") else false,
             bootStartEnabled = settings.getBoolean("bootStart"),
             networkReconnectEnabled = settings.getBoolean("networkReconnect"),
             autoRetryEnabled = settings.getBoolean("autoRetry"),

@@ -131,6 +131,7 @@
     <string name="logs_no_logs_to_copy">No logs to copy</string>
     <string name="settings_boot_start">Boot start</string>
     <string name="settings_notifications">Notifications</string>
+    <string name="settings_live_updates">Live updates</string>
     <string name="settings_battery">Battery optimization guide</string>
     <string name="settings_theme_seed">Theme color</string>
     <string name="settings_language">Language</string>

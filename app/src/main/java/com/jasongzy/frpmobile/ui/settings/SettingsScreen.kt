@@ -3,6 +3,7 @@ package com.jasongzy.frpmobile.ui.settings
 import com.jasongzy.frpmobile.BuildConfig
 import com.jasongzy.frpmobile.R
 import android.app.Application
+import android.app.NotificationManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Refresh
@@ -131,6 +133,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setBootStart(enabled: Boolean) = execute { repository.setBootStartEnabled(enabled) }
     fun setLaunchStart(enabled: Boolean) = execute { repository.setLaunchStartEnabled(enabled) }
     fun setExcludeFromRecents(enabled: Boolean) = execute { repository.setExcludeFromRecents(enabled) }
+    fun setLiveUpdates(enabled: Boolean) = execute { repository.setLiveUpdatesEnabled(enabled) }
     fun setNetworkReconnect(enabled: Boolean) = execute {
         repository.setNetworkReconnectEnabled(enabled)
     }
@@ -311,6 +314,26 @@ fun SettingsScreen(
                 subtitle = stringResource(R.string.settings_notifications_hint),
                 modifier = Modifier.padding(horizontal = FrpUiTokens.ScreenPadding).clickable { openNotificationSettings(context) },
             )
+        }
+        if (Build.VERSION.SDK_INT >= 36) {
+            item {
+                ToggleItem(
+                    icon = Icons.Rounded.NotificationsActive,
+                    title = stringResource(R.string.settings_live_updates),
+                    checked = settings.liveUpdatesEnabled,
+                    onChange = { enabled ->
+                        viewModel.setLiveUpdates(enabled)
+                        if (enabled && !context.getSystemService(NotificationManager::class.java).canPostPromotedNotifications()) {
+                            try {
+                                context.startActivity(Intent(AndroidSettings.ACTION_APP_NOTIFICATION_PROMOTION_SETTINGS)
+                                    .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName))
+                            } catch (_: ActivityNotFoundException) {
+                                openNotificationSettings(context)
+                            }
+                        }
+                    },
+                )
+            }
         }
         item { SectionTitle(stringResource(R.string.settings_appearance_section)) }
         item {

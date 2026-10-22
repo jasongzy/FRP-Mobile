@@ -33,11 +33,13 @@ data class FrpSettings(
     @ColumnInfo(defaultValue = "0") val externalReadEnabled: Boolean = false,
     @ColumnInfo(defaultValue = "0") val externalWriteEnabled: Boolean = false,
     @ColumnInfo(defaultValue = "-1") val runtimeBootCount: Int = -1,
+    @ColumnInfo(defaultValue = "0") val liveUpdatesEnabled: Boolean = false,
 )
 
 interface SettingsGateway {
     suspend fun setLaunchStartEnabled(enabled: Boolean)
     suspend fun setExcludeFromRecents(enabled: Boolean)
+    suspend fun setLiveUpdatesEnabled(enabled: Boolean)
     suspend fun setExternalReadEnabled(enabled: Boolean)
     suspend fun setExternalWriteEnabled(enabled: Boolean)
     suspend fun setRuntimeBootCount(count: Int)
@@ -64,6 +66,7 @@ class SettingsStore(private val database: FrpDatabase) : SettingsGateway {
     override val settings: Flow<FrpSettings> = dao.observeSettings().map { it ?: FrpSettings() }
     override suspend fun setLaunchStartEnabled(enabled: Boolean) = update { it.copy(launchStartEnabled = enabled) }
     override suspend fun setExcludeFromRecents(enabled: Boolean) = update { it.copy(excludeFromRecents = enabled) }
+    override suspend fun setLiveUpdatesEnabled(enabled: Boolean) = update { it.copy(liveUpdatesEnabled = enabled) }
     override suspend fun setExternalReadEnabled(enabled: Boolean) = update { it.copy(externalReadEnabled = enabled) }
     override suspend fun setExternalWriteEnabled(enabled: Boolean) = update { it.copy(externalWriteEnabled = enabled) }
     override suspend fun setRuntimeBootCount(count: Int) = update { it.copy(runtimeBootCount = count) }

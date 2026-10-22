@@ -128,6 +128,7 @@
     <string name="logs_no_logs_to_copy">没有可复制的日志</string>
     <string name="settings_boot_start">开机自启</string>
     <string name="settings_notifications">通知设置</string>
+    <string name="settings_live_updates">实时活动通知</string>
     <string name="settings_battery">电池优化引导</string>
     <string name="settings_theme_seed">主题配色</string>
     <string name="settings_language">语言</string>

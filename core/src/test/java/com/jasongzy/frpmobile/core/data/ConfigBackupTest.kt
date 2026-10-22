@@ -12,7 +12,7 @@ class ConfigBackupTest {
     private val backup = ConfigBackup(
         listOf(FrpProfile("sample", "示例", FrpType.Client, "unfinished draft =", true, 123,
             mapOf("key.pem" to byteArrayOf(0, 1, -1, 127)))),
-        FrpSettings(themeMode = ThemeMode.Dark, languageMode = LanguageMode.Chinese, bootStartEnabled = true),
+        FrpSettings(themeMode = ThemeMode.Dark, languageMode = LanguageMode.Chinese, bootStartEnabled = true, liveUpdatesEnabled = true),
     )
 
     @Test fun roundTripPreservesDraftsBinaryCertificatesAndSettings() {

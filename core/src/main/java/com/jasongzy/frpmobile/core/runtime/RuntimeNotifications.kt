@@ -33,7 +33,7 @@ object RuntimeNotifications {
         )
     }
 
-    fun build(context: Context, runningCount: Int): Notification {
+    fun build(context: Context, runningCount: Int, liveUpdates: Boolean = false): Notification {
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val openAppIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
             PendingIntent.getActivity(context, 0, it, flags)
@@ -56,6 +56,10 @@ object RuntimeNotifications {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .addAction(0, context.getString(R.string.notification_stop_all), stopAllIntent)
+        if (liveUpdates && runningCount > 0) {
+            builder.setRequestPromotedOngoing(true)
+                .setShortCriticalText(context.getString(R.string.notification_running_short, runningCount))
+        }
         if (openAppIntent != null) {
             builder.setContentIntent(openAppIntent)
             builder.addAction(0, context.getString(R.string.notification_open_app), openAppIntent)
@@ -67,28 +71,23 @@ object RuntimeNotifications {
     suspend fun observeModule(context: Context) {
         val repository = AppGraph.repository(context)
         val manager = context.getSystemService(NotificationManager::class.java)
-        var notifiedCount: Int? = null
         createChannel(context)
         try {
             if (repository.settings.first().rootMode) repository.syncRuntimeStates()
             combine(repository.settings, repository.runtimeStates) { settings, states ->
                 val count = FrpRuntimePolicy.moduleNotificationCount(settings.rootMode, states)
-                (settings.rootMode && (settings.runtimeSyncPending || count != null)) to count
-            }.distinctUntilChanged().collectLatest { (active, count) ->
-                do {
-                    if (count == null) {
-                        manager.cancel(MODULE_ID)
-                        notifiedCount = null
-                    } else if (count != notifiedCount && (Build.VERSION.SDK_INT < 33 ||
-                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)) {
-                        manager.notify(MODULE_ID, build(context, count))
-                        notifiedCount = count
-                    }
-                    if (active) {
-                        repository.syncRuntimeStates()
-                        delay(2000)
-                    }
-                } while (active && currentCoroutineContext().isActive)
+                Triple(settings.rootMode && (settings.runtimeSyncPending || count != null), count, settings.liveUpdatesEnabled)
+            }.distinctUntilChanged().collectLatest { (active, count, liveUpdates) ->
+                if (count == null) {
+                    manager.cancel(MODULE_ID)
+                } else if (Build.VERSION.SDK_INT < 33 ||
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                    manager.notify(MODULE_ID, build(context, count, liveUpdates))
+                }
+                while (active && currentCoroutineContext().isActive) {
+                    repository.syncRuntimeStates()
+                    delay(2000)
+                }
             }
         } finally {
             manager.cancel(MODULE_ID)

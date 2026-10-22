@@ -52,6 +52,7 @@ class FrpForegroundService : Service() {
     private val commandsInFlight = AtomicInteger()
     private var runtimeWatch: Job? = null
     private var notifiedCount: Int? = null
+    private var liveUpdatesEnabled = false
     @Volatile private var destroyed = false
     private val recoveryAttempts = ConcurrentHashMap<String, Int>()
     @Volatile private var latestStartId = 0
@@ -201,15 +202,18 @@ class FrpForegroundService : Service() {
             }
             withContext(Dispatchers.Main.immediate) {
                 if (commandsInFlight.get() == 0 && latestStartId == startId) {
-                    ServiceCompat.stopForeground(this@FrpForegroundService, ServiceCompat.STOP_FOREGROUND_REMOVE)
-                    stopSelf(startId)
+                    synchronized(this@FrpForegroundService) {
+                        notifiedCount = null
+                        ServiceCompat.stopForeground(this@FrpForegroundService, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                        stopSelf(startId)
+                    }
                 }
             }
             return
         }
         synchronized(this) {
             if (notifiedCount != count) {
-                getSystemService(NotificationManager::class.java).notify(RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(this, count))
+                getSystemService(NotificationManager::class.java).notify(RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(this, count, liveUpdatesEnabled))
                 notifiedCount = count
             }
         }
@@ -257,12 +261,25 @@ class FrpForegroundService : Service() {
                 if (settings.rootMode) {
                     screenOffKeepAliveEnabled = false
                     stopScreenOffKeepAliveMonitoring()
-                    ServiceCompat.stopForeground(this@FrpForegroundService, ServiceCompat.STOP_FOREGROUND_REMOVE)
-                    stopSelf()
+                    synchronized(this@FrpForegroundService) {
+                        notifiedCount = null
+                        ServiceCompat.stopForeground(this@FrpForegroundService, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                        stopSelf()
+                    }
                     return@collect
                 }
                 screenOffKeepAliveEnabled = settings.screenOffKeepAliveEnabled
                 updateScreenOffKeepAlive()
+                synchronized(this@FrpForegroundService) {
+                    if (!destroyed && liveUpdatesEnabled != settings.liveUpdatesEnabled) {
+                        liveUpdatesEnabled = settings.liveUpdatesEnabled
+                        notifiedCount?.let { count ->
+                            getSystemService(NotificationManager::class.java).notify(
+                                RuntimeNotifications.SERVICE_ID, RuntimeNotifications.build(this@FrpForegroundService, count, liveUpdatesEnabled),
+                            )
+                        }
+                    }
+                }
             }
         }
         scope.launch {
@@ -370,7 +387,7 @@ class FrpForegroundService : Service() {
         ServiceCompat.startForeground(
             this,
             RuntimeNotifications.SERVICE_ID,
-            RuntimeNotifications.build(this, runningCount = notifiedCount ?: 0),
+            RuntimeNotifications.build(this, runningCount = notifiedCount ?: 0, liveUpdates = liveUpdatesEnabled),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
         )
     }
